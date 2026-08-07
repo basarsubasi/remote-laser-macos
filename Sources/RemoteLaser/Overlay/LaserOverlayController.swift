@@ -1,0 +1,70 @@
+import AppKit
+
+final class LaserOverlayController {
+    private var window: NSWindow?
+    private(set) var dotView: LaserDotView?
+    private(set) var frame: CGRect = .zero
+
+    func install() {
+        guard window == nil else { return }
+        layout()
+
+        let panel = NSPanel(
+            contentRect: frame,
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        panel.backgroundColor = .clear
+        panel.isOpaque = false
+        panel.hasShadow = false
+        panel.ignoresMouseEvents = true
+        panel.level = .screenSaver
+        panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
+        panel.isMovable = false
+        panel.hidesOnDeactivate = false
+        panel.isReleasedWhenClosed = false
+
+        let dot = LaserDotView(frame: panel.contentView?.bounds ?? .zero)
+        dot.autoresizingMask = [.width, .height]
+        panel.contentView = dot
+        dot.isHidden = true
+
+        panel.orderFrontRegardless()
+        self.window = panel
+        self.dotView = dot
+
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.relayout()
+        }
+    }
+
+    func reveal() {
+        dotView?.isHidden = false
+    }
+
+    func hide() {
+        dotView?.isHidden = true
+    }
+
+    private func layout() {
+        frame = ScreenGeometry.mainVisibleFrame()
+    }
+
+    func relayout() {
+        layout()
+        window?.setFrame(frame, display: true)
+    }
+
+    func pointFor(normalizedX x: Double, normalizedY y: Double, sensitivity: Double = 1.0) -> CGPoint {
+        let sx = min(max(0.5 + (x - 0.5) * sensitivity, 0), 1)
+        let sy = min(max(0.5 + (y - 0.5) * sensitivity, 0), 1)
+        return CGPoint(
+            x: frame.minX + CGFloat(sx) * frame.width,
+            y: frame.minY + (1 - CGFloat(sy)) * frame.height
+        )
+    }
+}
