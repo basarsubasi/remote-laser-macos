@@ -56,7 +56,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        print("[RemoteLaser] terminating — stopping server…")
         server?.stop()
+        print("[RemoteLaser] bye.")
     }
 
     private func showDiagnosticDot() {
