@@ -149,9 +149,25 @@
   /* status colors */
   .live { color: var(--ok) !important; }
   .stopped { color: var(--warn) !important; }
+
+  /* === Toast === */
+  #toast {
+    position: fixed; left: 50%; top: calc(var(--safe-t) + 14px);
+    transform: translate(-50%, -20px); z-index: 999;
+    max-width: 92vw; padding: 10px 14px; border-radius: 12px;
+    background: rgba(38,16,18,0.96); border: 1px solid #6a2a30;
+    color: #ff8a82; font-size: 12px; line-height: 1.35;
+    pointer-events: none; opacity: 0;
+    transition: opacity .25s ease, transform .25s ease;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.55);
+    white-space: pre-wrap; word-break: break-word;
+  }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
 </style>
 </head>
 <body>
+
+<div id="toast"></div>
 
 <div id="bar">
   <span id="title">RemoteLaser</span>
@@ -240,6 +256,24 @@ let joyActive = false;
 let sweepTimer = null;
 let pumpTimer = null, lastPump = 0;
 
+// === Toast ===
+const toast = $('toast');
+let toastTimer = null;
+function showToast(msg, ms = 4500) {
+  toast.textContent = msg;
+  toast.classList.add('show');
+  if (toastTimer) clearTimeout(toastTimer);
+  if (ms > 0) toastTimer = setTimeout(() => toast.classList.remove('show'), ms);
+}
+// Surface uncaught JS errors so they don't silently break the UI on mobile.
+window.addEventListener('error', (e) => {
+  const m = e.error && e.error.stack ? e.error.stack : (e.message || 'Unknown error');
+  showToast('JS error: ' + m);
+});
+window.addEventListener('unhandledrejection', (e) => {
+  showToast('Promise reject: ' + (e.reason && e.reason.message ? e.reason.message : (e.reason || '?')));
+});
+
 const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
 const speed = () => parseFloat(speedEl.value);
 const deadzone = () => parseFloat(deadEl.value);
@@ -262,11 +296,22 @@ connect.addEventListener('click', () => {
   }
   const host = hostEl.value.trim() || '127.0.0.1';
   const port = parseInt(portEl.value, 10) || 8080;
-  const url = `ws://${host}:${port}/laser`;
+  let url = `ws://${host}:${port}/laser`;
+  // Detect if the browser silently rewrote ws:// -> wss:// (HTTPS-First Mode)
+  if (location.origin.startsWith('https') && !url.startsWith('wss')) {
+    showToast('Page is HTTPS but URL is ws://. Mixed content will fail. Serve client over http:// instead.');
+  }
   setStatus('connecting…');
-  ws = new WebSocket(url);
+  try {
+    ws = new WebSocket(url);
+  } catch (err) {
+    showToast('WebSocket() threw: ' + (err && err.message ? err.message : err));
+    setStatus('error');
+    return;
+  }
   ws.onopen = () => {
     setStatus('connected');
+    toast.classList.remove('show');
     connect.textContent = 'Stop';
     connect.classList.add('connected');
     sendMove(dotX, dotY);
@@ -275,15 +320,34 @@ connect.addEventListener('click', () => {
     try {
       const m = JSON.parse(e.data);
       if (m.type === 'ready') setStatus(`screen ${m.screen.w}×${m.screen.h}`);
-    } catch {}
+    } catch (err) {
+      showToast('Bad server msg: ' + (err && err.message ? err.message : err));
+    }
   };
-  ws.onclose = () => {
+  ws.onclose = (e) => {
     setStatus('disconnected');
     connect.textContent = 'Connect';
     connect.classList.remove('connected');
     ws = null; stopPump();
+    let reason = '';
+    switch (e.code) {
+      case 1000: reason = 'normal close'; break;
+      case 1006: reason = 'abnormal close (server unreachable / refused / mixed content)'; break;
+      case 1015: reason = 'TLS handshake failed'; break;
+      case 1005: reason = 'no status received'; break;
+      default: reason = 'code ' + e.code + (e.reason ? ' — ' + e.reason : '');
+    }
+    if (e.code !== 1000) showToast('WebSocket closed: ' + reason, 6000);
   };
-  ws.onerror = () => setStatus('error');
+  ws.onerror = (e) => {
+    // Browsers don't expose error detail via onerror; onclose.reason/code is richer.
+    let hint = '';
+    if (location.protocol === 'https:') hint = 'Page is https → ws:// blocked (mixed content). Use http://.';
+    else if (location.protocol === 'file:') hint = 'file:// + ws:// may be blocked on mobile. Serve via http://.';
+    else hint = 'Could be firewall, wrong IP/port, or HTTPS-First rewrite.';
+    showToast('WebSocket error: ' + hint, 6000);
+    setStatus('error');
+  };
 });
 function setStatus(t) { status.textContent = t; }
 
