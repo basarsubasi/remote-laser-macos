@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let autoHide: Double
     private let trailLength: Int
     private let trailFade: Double
+    private let allowedIPs: [String]
     private var statusItem: NSStatusItem?
     private var overlay: LaserOverlayController!
     private var processor: EventProcessor!
@@ -21,7 +22,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
          dotSize: Double = 10,
          autoHide: Double = 1.0,
          trailLength: Int = 0,
-         trailFade: Double = 2.0) {
+         trailFade: Double = 2.0,
+         allowedIPs: [String] = ["all"]) {
         self.port = port
         self.smooth = smooth
         self.sensitivity = sensitivity
@@ -29,6 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.autoHide = autoHide
         self.trailLength = trailLength
         self.trailFade = trailFade
+        self.allowedIPs = allowedIPs
         super.init()
     }
 
@@ -45,7 +48,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         processor.startDisplayLink()
 
         let processor = self.processor!
-        let server = LaserServer(port: port) { event in
+        let server = LaserServer(port: port, allowedIPs: allowedIPs) { event in
             Task { @MainActor in
                 processor.apply(event)
             }
@@ -57,6 +60,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setupStatusItem()
         print("RemoteLaser listening on ws://0.0.0.0:\(port)/laser")
         print("LAN IP hint: \(primaryLANIP() ?? "<unknown>")")
+        print("Allowed IPs: \(allowedIPs.joined(separator: ", "))")
     }
 
     func applicationWillTerminate(_ notification: Notification) {

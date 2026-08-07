@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 
 struct Options {
@@ -8,6 +9,7 @@ struct Options {
     var autoHide: Double = 1.0       // seconds of inactivity before the dot hides (0 = never)
     var trailLength: Int = 50        // max number of stamped trail segments kept in memory
     var trailFade: Double = 5.0      // seconds for a stamp to fully fade (0 = never fade)
+    var allowedIPs: [String] = ["all"] // allowed client IP addresses (default: ["all"])
     var help: Bool = false
 
     static let usage = """
@@ -30,11 +32,15 @@ struct Options {
       --trail-fade <0-60>     Seconds for a stamped segment to fade from full opacity
                               to invisible (default: 5.0). 0 = never fade (capped only
                               by --trail-length).
+      --allowed-ips <ips>     Comma-separated list of allowed client IP addresses
+                              (default: all). If specified, requests from other IPs
+                              immediately receive 401 without prompting on CLI.
       -h, --help              Show this message and exit
     """
 
     static func parse(_ args: [String]) -> Options {
         var opts = Options()
+        var isFirstAllowedIPs = true
         var i = 1
         while i < args.count {
             let arg = args[i]
@@ -84,6 +90,18 @@ struct Options {
                 }
                 opts.trailFade = validateTrailFade(value)
                 i += 2
+            case "--allowed-ips":
+                guard i + 1 < args.count else {
+                    fail("--allowed-ips requires a value (e.g. 'all' or '192.168.1.5,192.168.1.10')")
+                }
+                let parsed = parseAllowedIPs(args[i + 1])
+                if isFirstAllowedIPs {
+                    opts.allowedIPs = parsed
+                    isFirstAllowedIPs = false
+                } else {
+                    opts.allowedIPs.append(contentsOf: parsed)
+                }
+                i += 2
             default:
                 if let (_, v) = parseEquals(arg, "--port") {
                     guard let n = Int(v) else { fail("--port requires a numeric value") }
@@ -106,6 +124,14 @@ struct Options {
                 } else if let (_, v) = parseEquals(arg, "--trail-fade") {
                     guard let n = Double(v) else { fail("--trail-fade requires a numeric value") }
                     opts.trailFade = validateTrailFade(n)
+                } else if let (_, v) = parseEquals(arg, "--allowed-ips") {
+                    let parsed = parseAllowedIPs(v)
+                    if isFirstAllowedIPs {
+                        opts.allowedIPs = parsed
+                        isFirstAllowedIPs = false
+                    } else {
+                        opts.allowedIPs.append(contentsOf: parsed)
+                    }
                 } else {
                     fail("Unknown argument: \(arg)")
                 }
@@ -168,6 +194,41 @@ struct Options {
             fail("--trail-fade must be between 0 and 60 seconds")
         }
         return value
+    }
+
+    private static func parseAllowedIPs(_ value: String) -> [String] {
+        let items = value.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        guard !items.isEmpty else {
+            fail("--allowed-ips requires a non-empty IP address or 'all'")
+        }
+        for item in items {
+            let lower = item.lowercased()
+            if lower == "all" || lower == "localhost" {
+                continue
+            }
+            let testIP: String
+            if lower.hasPrefix("::ffff:") {
+                testIP = String(item.dropFirst(7))
+            } else {
+                testIP = item
+            }
+            guard isValidIPAddress(testIP) else {
+                fail("--allowed-ips contains invalid IP address: '\(item)' (must be a valid IPv4, IPv6 address, 'all', or 'localhost')")
+            }
+        }
+        return items
+    }
+
+    private static func isValidIPAddress(_ ip: String) -> Bool {
+        var sin = in_addr()
+        if inet_pton(AF_INET, ip, &sin) == 1 {
+            return true
+        }
+        var sin6 = in6_addr()
+        if inet_pton(AF_INET6, ip, &sin6) == 1 {
+            return true
+        }
+        return false
     }
 
     private static func fail(_ message: String) -> Never {
