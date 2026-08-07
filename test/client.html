@@ -2,188 +2,260 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, maximum-scale=1"/>
-<title>RemoteLaser Test Client</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<title>RemoteLaser</title>
 <style>
-  :root { color-scheme: light dark; }
-  * { box-sizing: border-box; }
+  :root { color-scheme: dark; --bg:#0e0e10; --panel:#1a1a1e; --line:#2c2c30; --fg:#eee; --dim:#888;
+    --accent:#ff453a; --accent2:#ff6b5e; --ok:#4ade80; --warn:#f87171; --tap:#2a2a2e;
+    --safe-t: env(safe-area-inset-top, 0px); --safe-b: env(safe-area-inset-bottom, 0px);
+    --safe-l: env(safe-area-inset-left, 0px); --safe-r: env(safe-area-inset-right, 0px);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body {
-    margin: 0; padding: 0; height: 100%;
-    font: 14px -apple-system, system-ui, sans-serif;
-    background: #1a1a1a; color: #eee;
-    touch-action: none; overscroll-behavior: none; user-select: none;
+    margin: 0; padding: 0; height: 100%; width: 100%;
+    font: 15px -apple-system, system-ui, "SF Pro Text", sans-serif;
+    background: var(--bg); color: var(--fg);
+    touch-action: none; overscroll-behavior: none;
+    user-select: none; -webkit-user-select: none;
+    overflow: hidden; position: fixed; inset: 0;
   }
-  body { display: flex; flex-direction: column; }
-  header { padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; }
-  h1 { margin: 0; font-size: 15px; font-weight: 600; }
-  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  label { font-size: 12px; opacity: 0.7; min-width: 38px; }
-  input, button, select {
-    font: inherit; padding: 6px 10px; border-radius: 8px;
-    border: 1px solid #444; background: #2a2a2a; color: #eee;
-  }
-  input[type=number] { width: 64px; }
-  input[type=range] { width: 110px; vertical-align: middle; }
-  button { cursor: pointer; min-width: 84px; }
-  button:active { background: #3a3a3a; }
-  #connect { min-width: 96px; }
-  #status { font-size: 12px; opacity: 0.6; flex: 1; text-align: right; }
+  body { display: flex; flex-direction: column;
+    padding: var(--safe-t) var(--safe-r) var(--safe-b) var(--safe-l); }
 
-  main {
-    flex: 1; display: flex; gap: 14px; padding: 0 14px 14px; min-height: 0;
+  /* === Top bar === */
+  #bar {
+    flex: 0 0 auto; display: flex; align-items: center; gap: 8px;
+    padding: 10px 14px; background: var(--panel);
+    border-bottom: 1px solid var(--line);
   }
+  #title { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; white-space: nowrap; }
+  #status { flex: 1; font-size: 11px; color: var(--dim); text-align: right;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .icon-btn {
+    flex: 0 0 auto; width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--tap); color: var(--fg); font-size: 18px; padding: 0;
+    display: flex; align-items: center; justify-content: center; font-weight: 700;
+  }
+  .icon-btn:active { background: #3a3a3e; }
+  #connect {
+    flex: 0 0 auto; min-width: 72px; height: 38px; border-radius: 10px;
+    border: 1px solid var(--accent); background: var(--accent); color: #fff;
+    font-weight: 700; font-size: 14px; padding: 0 14px;
+  }
+  #connect.connected { background: transparent; color: var(--accent); border-color: var(--accent); }
 
-  /* Joystick on the left */
+  /* === Settings sheet === */
+  #sheet {
+    flex: 0 0 auto; background: var(--panel); border-bottom: 1px solid var(--line);
+    max-height: 0; overflow: hidden; transition: max-height .22s ease;
+  }
+  #sheet.open { max-height: 360px; }
+  #sheetInner { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 12px; }
+  .field { display: flex; align-items: center; gap: 10px; }
+  .field label { flex: 0 0 76px; font-size: 12px; color: var(--dim); }
+  .field input[type=range] { flex: 1; height: 28px; }
+  .field .val { flex: 0 0 52px; font-size: 12px; text-align: right; color: var(--fg);
+    font-variant-numeric: tabular-nums; }
+  .field input[type=text], .field input[type=number] {
+    flex: 1; height: 36px; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--tap); color: var(--fg); font: inherit; padding: 0 10px;
+  }
+  .toggle { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+  .toggle input { width: 18px; height: 18px; accent-color: var(--accent); }
+  .toggle span { font-size: 13px; }
+
+  /* === Stage === */
+  #stage { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; position: relative; }
+
+  /* === Action row === */
+  #actions {
+    flex: 0 0 auto; display: flex; gap: 8px; padding: 12px 14px;
+    background: var(--panel); border-top: 1px solid var(--line);
+  }
+  .act {
+    flex: 1; height: 44px; border-radius: 12px; border: 1px solid var(--line);
+    background: var(--tap); color: var(--fg); font: inherit; font-size: 13px;
+    font-weight: 600; padding: 0; display: flex; align-items: center; justify-content: center;
+  }
+  .act:active { background: #3a3a3e; transform: scale(.97); }
+  .act.danger { color: var(--warn); border-color: #5a2a30; }
+
+  /* === Joystick === */
   #joyWrap {
-    flex: 1; display: flex; align-items: center; justify-content: center;
-    background: linear-gradient(135deg, #222, #1a1a1a);
-    border: 2px dashed #444; border-radius: 20px; position: relative;
+    flex: 1 1 auto; display: flex; align-items: center; justify-content: center;
+    position: relative; padding: 18px; min-height: 0;
   }
   #joyBase {
-    width: 70%; aspect-ratio: 1; max-width: 320px; max-height: 100%;
-    border-radius: 50%; border: 2px solid #4a4a4a;
-    background: radial-gradient(circle, #2c2c2c, #1f1f1f);
+    width: min(72vw, 320px); aspect-ratio: 1; max-height: 60vh;
+    border-radius: 50%; border: 2px solid #3a3a3e;
+    background: radial-gradient(circle, #202024 0%, #16161a 70%);
     position: relative; touch-action: none;
+    box-shadow: inset 0 2px 24px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.03);
   }
-  #deadZoneRing {
-    position: absolute; inset: 38%; border-radius: 50%;
-    border: 1px dashed #555; pointer-events: none;
+  #joyBase::after {
+    content: ""; position: absolute; inset: 30%; border-radius: 50%;
+    border: 1px dashed #404044; pointer-events: none;
   }
   #joyKnob {
-    position: absolute; width: 26%; height: 26%; left: 37%; top: 37%;
+    position: absolute; width: 28%; height: 28%; left: 36%; top: 36%;
     border-radius: 50%;
-    background: radial-gradient(circle at 35% 30%, #ff6b5e, #c81d12);
-    box-shadow: 0 4px 14px rgba(0,0,0,0.5);
-    pointer-events: none;
-    transition: left 0.08s, top 0.08s;
+    background: radial-gradient(circle at 35% 28%, var(--accent2), var(--accent));
+    box-shadow: 0 6px 18px rgba(255,69,58,0.35), inset 0 1px 2px rgba(255,255,255,0.3);
+    pointer-events: none; transition: left .08s, top .08s;
+  }
+  #joyHint {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: #4a4a4e; font-size: 13px; pointer-events: none; text-align: center;
+    padding: 0 20%;
   }
 
-  /* Right column: preview dot + buttons */
-  #right { display: flex; flex-direction: column; gap: 12px; min-width: 200px; }
+  /* === Preview (hidden on small screens, shown on tablets/desktop) === */
   #preview {
-    flex: 1; border: 2px dashed #444; border-radius: 16px;
-    background: #1c1c1c; position: relative; min-height: 140px;
-    overflow: hidden;
+    display: none; flex: 0 0 96px; margin: 0 14px 12px; border-radius: 12px;
+    border: 1px solid var(--line); background: #141418; position: relative; overflow: hidden;
   }
+  @media (min-width: 600px) { #preview { display: block; } }
   #previewDot {
-    position: absolute; width: 18px; height: 18px; border-radius: 50%;
-    background: radial-gradient(circle at 40% 35%, #ff6b5e, #c81d12);
+    position: absolute; width: 14px; height: 14px; border-radius: 50%;
+    background: radial-gradient(circle at 40% 30%, var(--accent2), var(--accent));
+    transform: translate(-50%, -50%); pointer-events: none; box-shadow: 0 0 8px rgba(255,69,58,0.4);
+  }
+  #previewNote { position: absolute; inset: 0; display: flex; align-items: center;
+    justify-content: center; font-size: 11px; color: var(--dim); pointer-events: none; }
+
+  /* === Tap mode overlay (replaces joystick when tap-to-position is on) === */
+  #tapPad {
+    display: none; flex: 1 1 auto; position: relative; margin: 14px;
+    border-radius: 16px; border: 2px dashed var(--line); background: #141418;
+    touch-action: none; overflow: hidden;
+  }
+  #tapPad.active { display: block; }
+  #tapPadDot {
+    position: absolute; width: 22px; height: 22px; border-radius: 50%;
+    background: radial-gradient(circle at 40% 30%, var(--accent2), var(--accent));
     transform: translate(-50%, -50%); pointer-events: none;
-    opacity: 0; transition: opacity 0.1s;
+    box-shadow: 0 0 14px rgba(255,69,58,0.5);
   }
-  #preview.active #previewDot { opacity: 1; }
-  #previewHint {
-    position: absolute; inset: 0; display: flex; align-items: center;
-    justify-content: center; font-size: 11px; opacity: 0.4; pointer-events: none;
-  }
-  .btnRow { display: flex; gap: 8px; flex-wrap: wrap; }
-  .badge { font-size: 11px; padding: 3px 8px; border-radius: 6px; background: #333; }
-  .live { color: #4ade80; }
-  .stopped { color: #f87171; }
-  @media (max-width: 540px) {
-    main { flex-direction: column; }
-    #joyWrap { min-height: 240px; }
-    #right { min-width: 0; }
-  }
+  #tapPadHint { position: absolute; inset: 0; display: flex; align-items: center;
+    justify-content: center; font-size: 13px; color: var(--dim); pointer-events: none;
+    text-align: center; padding: 0 20%; }
+
+  /* hide joystick + preview when in tap mode */
+  body.tap #joyWrap, body.tap #preview { display: none !important; }
+
+  /* status colors */
+  .live { color: var(--ok) !important; }
+  .stopped { color: var(--warn) !important; }
 </style>
 </head>
 <body>
-<header>
-  <h1>RemoteLaser Test Client — joystick</h1>
-  <div class="row">
-    <label>Host</label>
-    <input id="host" value="127.0.0.1" placeholder="mac LAN IP">
-    <label>Port</label>
-    <input id="port" type="number" value="8080">
-    <button id="connect">Connect</button>
-    <span id="status">disconnected</span>
-  </div>
-  <div class="row">
-    <label>Speed</label>
-    <input id="speed" type="range" min="0.05" max="2" step="0.05" value="0.8">
-    <span id="speedV" class="badge">0.8/s</span>
-    <label>Deadzone</label>
-    <input id="dead" type="range" min="0" max="0.5" step="0.01" value="0.08">
-    <span id="deadV" class="badge">0.08</span>
-    <label>Rate</label>
-    <input id="rate" type="range" min="10" max="120" step="5" value="60">
-    <span id="rateV" class="badge">60Hz</span>
-  </div>
-  <div class="row">
-    <button id="sweep">Sweep</button>
-    <button id="center">Center dot</button>
-    <button id="hide">Hide dot</button>
-    <label style="min-width:auto;cursor:pointer;display:flex;align-items:center;gap:4px;">
-      <input type="checkbox" id="tapMode" style="width:auto;"> tap-to-position mode
+
+<div id="bar">
+  <span id="title">RemoteLaser</span>
+  <span id="status">disconnected</span>
+  <button id="gear" class="icon-btn" aria-label="settings">⋯</button>
+  <button id="connect">Connect</button>
+</div>
+
+<div id="sheet">
+  <div id="sheetInner">
+    <div class="field">
+      <label>Host</label>
+      <input id="host" type="text" value="127.0.0.1" placeholder="mac LAN IP" autocapitalize="off" autocorrect="off" spellcheck="false">
+    </div>
+    <div class="field">
+      <label>Port</label>
+      <input id="port" type="number" value="8080" inputmode="numeric">
+    </div>
+    <div class="field">
+      <label>Speed</label>
+      <input id="speed" type="range" min="0.05" max="2" step="0.05" value="0.8">
+      <span class="val" id="speedV">0.80/s</span>
+    </div>
+    <div class="field">
+      <label>Deadzone</label>
+      <input id="dead" type="range" min="0" max="0.5" step="0.01" value="0.08">
+      <span class="val" id="deadV">0.08</span>
+    </div>
+    <div class="field">
+      <label>Send rate</label>
+      <input id="rate" type="range" min="10" max="120" step="5" value="60">
+      <span class="val" id="rateV">60Hz</span>
+    </div>
+    <label class="toggle">
+      <input type="checkbox" id="tapMode">
+      <span>Tap-to-position mode (tap the screen to move the dot directly)</span>
     </label>
   </div>
-</header>
+</div>
 
-<main>
+<div id="stage">
   <div id="joyWrap">
     <div id="joyBase">
-      <div id="deadZoneRing"></div>
       <div id="joyKnob"></div>
+      <div id="joyHint">drag the knob to fly the laser</div>
     </div>
   </div>
-  <div id="right">
-    <div id="preview">
-      <div id="previewHint">preview</div>
-      <div id="previewDot"></div>
-    </div>
-    <div class="row">
-      <span class="badge" id="modeState">idle</span>
-      <span class="badge" id="vecState">stick (0.00, 0.00)</span>
-    </div>
-    <div class="row">
-      <span class="badge" id="posState">dot @ (0.50, 0.50)</span>
-    </div>
+
+  <div id="preview">
+    <div id="previewNote">screen preview</div>
+    <div id="previewDot"></div>
   </div>
-</main>
+
+  <div id="tapPad">
+    <div id="tapPadHint">tap or drag anywhere to position the laser</div>
+    <div id="tapPadDot"></div>
+  </div>
+</div>
+
+<div id="actions">
+  <button class="act" id="sweep">Sweep</button>
+  <button class="act" id="center">Center</button>
+  <button class="act danger" id="hide">Hide</button>
+</div>
 
 <script>
-const hostEl = document.getElementById('host');
-const portEl = document.getElementById('port');
-const btn = document.getElementById('connect');
-const status = document.getElementById('status');
-const joyBase = document.getElementById('joyBase');
-const joyKnob = document.getElementById('joyKnob');
-const preview = document.getElementById('preview');
-const previewDot = document.getElementById('previewDot');
-const previewHint = document.getElementById('previewHint');
-const modeState = document.getElementById('modeState');
-const vecState = document.getElementById('vecState');
-const posState = document.getElementById('posState');
-const speedEl = document.getElementById('speed');
-const speedV = document.getElementById('speedV');
-const deadEl = document.getElementById('dead');
-const deadV = document.getElementById('deadV');
-const rateEl = document.getElementById('rate');
-const rateV = document.getElementById('rateV');
-const sweepBtn = document.getElementById('sweep');
-const centerBtn = document.getElementById('center');
-const hideBtn = document.getElementById('hide');
-const tapModeEl = document.getElementById('tapMode');
+const $ = (id) => document.getElementById(id);
+const bar = $('bar'), status = $('status'), gear = $('gear'), connect = $('connect');
+const sheet = $('sheet');
+const hostEl = $('host'), portEl = $('port');
+const speedEl = $('speed'), speedV = $('speedV');
+const deadEl = $('dead'), deadV = $('deadV');
+const rateEl = $('rate'), rateV = $('rateV');
+const tapModeEl = $('tapMode');
+const joyBase = $('joyBase'), joyKnob = $('joyKnob'), joyHint = $('joyHint');
+const preview = $('preview'), previewDot = $('previewDot');
+const tapPad = $('tapPad'), tapPadDot = $('tapPadDot'), tapPadHint = $('tapPadHint');
+const sweepBtn = $('sweep'), centerBtn = $('center'), hideBtn = $('hide');
 
 let ws = null;
-// dot position normalized 0..1 (top-left origin like the server expects)
+// dot position normalized 0..1 (top-left origin matching the server)
 let dotX = 0.5, dotY = 0.5;
 // joystick vector -1..1
 let stickX = 0, stickY = 0;
 let joyActive = false;
 let sweepTimer = null;
+let pumpTimer = null, lastPump = 0;
 
-function clamp(v, lo, hi) { return Math.min(Math.max(v, lo), hi); }
+const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
+const speed = () => parseFloat(speedEl.value);
+const deadzone = () => parseFloat(deadEl.value);
+const rate = () => parseInt(rateEl.value, 10);
 
-function speed() { return parseFloat(speedEl.value); }
-function deadzone() { return parseFloat(deadEl.value); }
-function rate() { return parseInt(rateEl.value, 10); }
-
-speedEl.addEventListener('input', () => speedV.textContent = speedEl.value + '/s');
+speedEl.addEventListener('input', () => speedV.textContent = parseFloat(speedEl.value).toFixed(2) + '/s');
 deadEl.addEventListener('input', () => deadV.textContent = deadEl.value);
 rateEl.addEventListener('input', () => rateV.textContent = rateEl.value + 'Hz');
 
-btn.addEventListener('click', () => {
+// === Settings toggle ===
+gear.addEventListener('click', () => sheet.classList.toggle('open'));
+// Auto-open sheet on first load so the user can enter the host easily
+sheet.classList.add('open');
+
+// === Connect ===
+connect.addEventListener('click', () => {
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
     ws.close();
     return;
@@ -193,15 +265,25 @@ btn.addEventListener('click', () => {
   const url = `ws://${host}:${port}/laser`;
   setStatus('connecting…');
   ws = new WebSocket(url);
-  ws.onopen = () => { setStatus('connected'); btn.textContent = 'Disconnect'; ws.send(JSON.stringify({type:'move', x:dotX, y:dotY})); };
+  ws.onopen = () => {
+    setStatus('connected');
+    connect.textContent = 'Stop';
+    connect.classList.add('connected');
+    sendMove(dotX, dotY);
+  };
   ws.onmessage = (e) => {
     try {
       const m = JSON.parse(e.data);
-      if (m.type === 'ready') setStatus(`connected · screen ${m.screen.w}x${m.screen.h}`);
+      if (m.type === 'ready') setStatus(`screen ${m.screen.w}×${m.screen.h}`);
     } catch {}
   };
-  ws.onclose = () => { setStatus('disconnected'); btn.textContent = 'Connect'; ws = null; stopPump(); };
-  ws.onerror = () => { setStatus('error'); };
+  ws.onclose = () => {
+    setStatus('disconnected');
+    connect.textContent = 'Connect';
+    connect.classList.remove('connected');
+    ws = null; stopPump();
+  };
+  ws.onerror = () => setStatus('error');
 });
 function setStatus(t) { status.textContent = t; }
 
@@ -214,27 +296,33 @@ function sendHide() {
   ws.send(JSON.stringify({ type: 'hide' }));
 }
 
+// === Preview update (desktop/tablet) ===
 function updatePreview() {
   const r = preview.getBoundingClientRect();
   previewDot.style.left = (dotX * r.width) + 'px';
   previewDot.style.top = (dotY * r.height) + 'px';
-  posState.textContent = `dot @ (${dotX.toFixed(2)}, ${dotY.toFixed(2)})`;
 }
-function showPreview() { preview.classList.add('active'); previewHint.style.display = 'none'; updatePreview(); }
-function hidePreview() { preview.classList.remove('active'); }
+function updateTapDot() {
+  const r = tapPad.getBoundingClientRect();
+  tapPadDot.style.left = (dotX * r.width) + 'px';
+  tapPadDot.style.top = (dotY * r.height) + 'px';
+}
+function refreshDotVisuals() {
+  if (tapModeEl.checked) updateTapDot(); else updatePreview();
+}
 
-// ----- Joystick drag -----
-let joyPointerId = null;
-let joyRect = null;
-
+// === Joystick ===
+let joyPointerId = null, joyRect = null;
 joyBase.addEventListener('pointerdown', (e) => {
-  if (tapModeEl.checked) return; // tap mode uses preview as the surface
+  if (tapModeEl.checked) return;
   if (joyPointerId !== null) return;
   joyPointerId = e.pointerId;
   joyBase.setPointerCapture(e.pointerId);
   joyRect = joyBase.getBoundingClientRect();
   joyActive = true;
-  modeState.textContent = 'flying'; modeState.className = 'badge live';
+  joyHint.style.display = 'none';
+  // vibrate lightly on touch devices
+  if (navigator.vibrate) navigator.vibrate(10);
   moveKnob(e);
 });
 joyBase.addEventListener('pointermove', (e) => {
@@ -246,15 +334,13 @@ function endJoy(e) {
   joyPointerId = null;
   joyActive = false;
   stickX = 0; stickY = 0;
-  joyKnob.style.left = '37%'; joyKnob.style.top = '37%';
-  vecState.textContent = 'stick (0.00, 0.00)';
-  modeState.textContent = 'idle (stopped)'; modeState.className = 'badge stopped';
-  // Send final position so the dot stays put
+  joyKnob.style.left = '36%'; joyKnob.style.top = '36%';
   sendMove(dotX, dotY);
   stopPump();
 }
 joyBase.addEventListener('pointerup', endJoy);
 joyBase.addEventListener('pointercancel', endJoy);
+joyBase.addEventListener('lostpointercapture', endJoy);
 
 function moveKnob(e) {
   const cx = joyRect.left + joyRect.width / 2;
@@ -264,50 +350,46 @@ function moveKnob(e) {
   let dy = (e.clientY - cy) / r;
   const mag = Math.hypot(dx, dy);
   if (mag > 1) { dx /= mag; dy /= mag; }
-  // Apply deadzone
   const dz = deadzone();
   let sx = dx, sy = dy;
   if (Math.hypot(sx, sy) < dz) { sx = 0; sy = 0; }
   stickX = sx; stickY = sy;
-  // Position knob (in % of base)
-  const kx = 50 + sx * 40; // knob can go to 90% / 10%
-  const ky = 50 + sy * 40;
-  joyKnob.style.left = (kx - 13) + '%';
-  joyKnob.style.top = (ky - 13) + '%';
-  vecState.textContent = `stick (${sx.toFixed(2)}, ${sy.toFixed(2)})`;
+  joyKnob.style.left = (50 + sx * 40 - 14) + '%';
+  joyKnob.style.top = (50 + sy * 40 - 14) + '%';
   startPump();
 }
 
-// ----- Tap-to-position mode (preview doubles as touch surface) -----
-preview.addEventListener('pointerdown', (e) => {
+// === Tap-to-position mode ===
+tapPad.addEventListener('pointerdown', (e) => {
   if (!tapModeEl.checked) return;
-  const r = preview.getBoundingClientRect();
-  dotX = clamp((e.clientX - r.left) / r.width, 0, 1);
-  dotY = clamp((e.clientY - r.top) / r.height, 0, 1);
-  showPreview();
-  sendMove(dotX, dotY);
-  modeState.textContent = 'tap'; modeState.className = 'badge live';
+  tapPad.setPointerCapture(e.pointerId);
+  tapTapMove(e);
 });
-preview.addEventListener('pointermove', (e) => {
+tapPad.addEventListener('pointermove', (e) => {
   if (!tapModeEl.checked || e.buttons === 0) return;
-  const r = preview.getBoundingClientRect();
+  tapTapMove(e);
+});
+function tapTapMove(e) {
+  const r = tapPad.getBoundingClientRect();
   dotX = clamp((e.clientX - r.left) / r.width, 0, 1);
   dotY = clamp((e.clientY - r.top) / r.height, 0, 1);
-  updatePreview();
+  updateTapDot();
+  tapPadHint.style.display = 'none';
   sendMove(dotX, dotY);
-});
-
+}
 tapModeEl.addEventListener('change', () => {
   if (tapModeEl.checked) {
-    modeState.textContent = 'tap mode (drag preview)';
+    document.body.classList.add('tap');
+    tapPad.classList.add('active');
+    updateTapDot();
   } else {
-    modeState.textContent = 'idle';
+    document.body.classList.remove('tap');
+    tapPad.classList.remove('active');
+    updatePreview();
   }
 });
 
-// ----- Velocity pump -----
-let pumpTimer = null;
-let lastPump = 0;
+// === Velocity pump ===
 function startPump() {
   if (pumpTimer !== null) return;
   const dt = 1000 / rate();
@@ -318,54 +400,50 @@ function stopPump() {
   if (pumpTimer !== null) { clearInterval(pumpTimer); pumpTimer = null; }
 }
 function tickPump() {
-  if (sweepTimer) return; // sweep owns the pump
+  if (sweepTimer) return;
   const now = performance.now();
   const dt = Math.min(0.05, (now - lastPump) / 1000);
   lastPump = now;
-  const s = speed();
-  dotX = clamp(dotX + stickX * s * dt, 0, 1);
-  dotY = clamp(dotY + stickY * s * dt, 0, 1);
-  // y on screen grows downward; joystick up (negative dy in screen-space of joy)
-  // should move dot up (smaller y). Our stickY is negative when pointing down in
-  // the joy box because clientY grows downward. Flip so up-on-joy = up-on-screen.
-  // Actually we computed stickY from (clientY - cy)/r, so down=? yes dy positive
-  // when pointing down. The screen y also increases downward so no flip needed.
+  dotX = clamp(dotX + stickX * speed() * dt, 0, 1);
+  dotY = clamp(dotY + stickY * speed() * dt, 0, 1);
   sendMove(dotX, dotY);
   updatePreview();
-  if (joyActive) showPreview();
 }
 
-// ----- Sweep demo -----
+// === Sweep demo ===
 sweepBtn.addEventListener('click', () => {
   if (!ws || ws.readyState !== WebSocket.OPEN) { setStatus('connect first'); return; }
-  if (sweepTimer) { clearInterval(sweepTimer); sweepTimer = null; sweepBtn.textContent = 'Sweep'; return; }
+  if (sweepTimer) { clearInterval(sweepTimer); sweepTimer = null; sweepBtn.textContent = 'Sweep'; stopPump(); return; }
   let t = 0;
   startPump();
   sweepTimer = setInterval(() => {
     t += 0.1;
     dotX = 0.5 + 0.45 * Math.sin(t);
     dotY = 0.5 + 0.30 * Math.cos(t * 1.3);
-    showPreview();
+    updatePreview();
     sendMove(dotX, dotY);
     if (t > 4 * Math.PI) { clearInterval(sweepTimer); sweepTimer = null; sweepBtn.textContent = 'Sweep'; stopPump(); }
   }, 50);
-  sweepBtn.textContent = 'Stop sweep';
+  sweepBtn.textContent = 'Stop';
 });
 
 centerBtn.addEventListener('click', () => {
   dotX = 0.5; dotY = 0.5;
-  showPreview();
+  refreshDotVisuals();
   sendMove(dotX, dotY);
-  modeState.textContent = 'centered'; modeState.className = 'badge live';
-});
-hideBtn.addEventListener('click', () => {
-  hidePreview();
-  sendHide();
-  modeState.textContent = 'hidden'; modeState.className = 'badge stopped';
 });
 
-window.addEventListener('resize', updatePreview);
-updatePreview();
+hideBtn.addEventListener('click', () => {
+  sendHide();
+});
+
+// Prevent context menu / long-press selection on touch
+document.addEventListener('contextmenu', (e) => e.preventDefault());
+document.addEventListener('gesturestart', (e) => e.preventDefault());
+
+// Keep visuals fresh on resize
+window.addEventListener('resize', refreshDotVisuals);
+refreshDotVisuals();
 </script>
 </body>
 </html>
