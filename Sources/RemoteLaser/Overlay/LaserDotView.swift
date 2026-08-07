@@ -11,6 +11,11 @@ final class LaserDotView: NSView {
     // their original position and fade based on age; the dot leads and the
     // stamps persist independently. Lets you "circle things" — the ink stays
     // and fades out over `trailFade` seconds.
+    //
+    // To keep the trail looking like a continuous line at any speed, each
+    // new stamp subdivides the segment from the previous stamp: intermediate
+    // stamps are filled in at a fixed spacing (≈ half the dot radius) so
+    // there are never visible gaps between consecutive dots.
     private struct Stamp {
         var position: CGPoint
         var birth: TimeInterval
@@ -21,6 +26,21 @@ final class LaserDotView: NSView {
     private var trailFade: TimeInterval = 2.0
     private var pushCounter: UInt64 = 0
     private var lastLoggedStamp: UInt64 = 0
+
+    /// Spacing between consecutive stamps along a segment, in points.
+    /// Smaller = denser/smoother line, more memory. ~half the dot radius
+    /// gives a solid-looking stroke with heavy circle overlap.
+    private var stampSpacing: CGFloat { max(2, dotRadius * 0.5) }
+
+    /// Max intermediate stamps emitted in a single tick (memory guard against
+    /// teleporting across the whole screen in one frame).
+    private static let maxStampsPerTick = 256
+
+    /// Gap (seconds) beyond which two consecutive stamps are treated as
+    /// separate strokes — no connector line is drawn between them. Prevents
+    /// a stray line across the screen when the dot re-appears after being
+    /// hidden or idle for a while.
+    private static let strokeBreakSeconds: TimeInterval = 0.1
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -128,6 +148,36 @@ final class LaserDotView: NSView {
 
     private func stamp(at point: CGPoint) {
         let now = ProcessInfo.processInfo.systemUptime
+        let spacing = stampSpacing
+
+        // Decide whether to connect to the previous stamp (continuous stroke)
+        // or start a fresh stroke (no connector line). A stroke break happens
+        // when the previous stamp is missing or older than the threshold — e.g.
+        // after a hide, auto-hide, or a long idle. This prevents a stray line
+        // from being drawn across the screen when the dot re-appears elsewhere.
+        let prev = stamps.last
+        let continuous = prev.map { now - $0.birth < Self.strokeBreakSeconds } ?? false
+
+        if continuous, let prev = prev {
+            let dx = point.x - prev.position.x
+            let dy = point.y - prev.position.y
+            let dist = hypot(dx, dy)
+            let steps = Int((dist / spacing).rounded())
+            if steps > 1 {
+                let capped = min(steps, Self.maxStampsPerTick)
+                for k in 1..<capped {
+                    let f = CGFloat(k) / CGFloat(steps)
+                    stamps.append(Stamp(
+                        position: CGPoint(
+                            x: prev.position.x + dx * f,
+                            y: prev.position.y + dy * f
+                        ),
+                        birth: now
+                    ))
+                }
+            }
+        }
+        // Always push the endpoint (the current dot position).
         stamps.append(Stamp(position: point, birth: now))
         pushCounter &+= 1
 
@@ -148,7 +198,7 @@ final class LaserDotView: NSView {
         if pushCounter &- lastLoggedStamp >= 60 {
             lastLoggedStamp = pushCounter
             #if DEBUG
-            print("[LaserDotView] stamp #\(pushCounter) live=\(stamps.count)/\(trailLength) fade=\(trailFade)s")
+            print("[LaserDotView] stamp tick #\(pushCounter) live=\(stamps.count)/\(trailLength) fade=\(trailFade)s")
             #endif
         }
     }

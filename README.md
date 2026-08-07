@@ -7,6 +7,8 @@ A macOS laser-pointer overlay controlled from a phone over WebSocket.
 - The laser dot is a single solid `CALayer` (no glow) whose position is updated by a 60Hz timer that lerps toward the latest WS-incoming target. Smoothness is decoupled from the WS frame rate.
 - Optional **persistent ink trail** for circling things: every 60Hz position the dot visits gets "stamped" on screen and stays there, fading out over `--trail-fade <sec>`. The ink is independent of the dot — when you stop or auto-hide, the mark lingers and fades on screen. `--trail-length <n>` caps the stamp buffer; `0` disables the trail entirely.
 
+  Stamps are auto-interpolated: if the dot moves a long distance in a single tick (high speed / big jump), the segment is subdivided into stamps at ~half-dot-radius spacing so the trail always reads as a continuous line, never separated dots. A stroke-break heuristic suppresses connector lines when the dot re-appears after being hidden.
+
   UX: draw a circle on screen → let go → the dot auto-hides after `--auto-hide` seconds, but the circle you drew remains visible and fades over `--trail-fade` seconds. Great for annotating live demos.
 - Size configurable via `--dot-size <points>` (radius), and the smoothing factor via `--smooth <0-1>` (lerp alpha per 60Hz frame).
 - Coordinates are normalized `0..1` per axis; the server maps to the active screen's `visibleFrame` and clamps (never under menu bar / Dock).
