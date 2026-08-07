@@ -9,6 +9,7 @@ final class EventProcessor: @unchecked Sendable {
     private let sensitivity: Double
     private let dotSize: CGFloat
     private let trailLength: Int
+    private let trailFade: TimeInterval
 
     // 60Hz pump
     private var displayTimer: DispatchSourceTimer?
@@ -22,45 +23,51 @@ final class EventProcessor: @unchecked Sendable {
          sensitivity: Double = 1.0,
          dotSize: Double = 10,
          autoHide: Double = 1.0,
-         trailLength: Int = 0) {
+         trailLength: Int = 0,
+         trailFade: Double = 2.0) {
         self.overlay = overlay
         self.smooth = smooth
         self.sensitivity = sensitivity
         self.dotSize = CGFloat(dotSize)
         self.hideDelay = max(0, autoHide)
         self.trailLength = trailLength
+        self.trailFade = max(0, trailFade)
     }
 
     func startDisplayLink() {
         guard displayTimer == nil else { return }
         overlay.dotView?.setDotRadius(dotSize)
-        overlay.dotView?.setTrailLength(trailLength)
+        overlay.dotView?.setTrail(length: trailLength, fade: trailFade)
         let timer = DispatchSource.makeTimerSource(queue: .main)
         timer.schedule(deadline: .now(), repeating: 1.0 / 60.0)
         timer.setEventHandler { [weak self] in self?.tick() }
         timer.resume()
         displayTimer = timer
         #if DEBUG
-        print("[EventProcessor] 60Hz pump started (smooth=\(smooth), dotSize=\(dotSize), trailLength=\(trailLength))")
+        print("[EventProcessor] 60Hz pump started (smooth=\(smooth), dotSize=\(dotSize), trailLength=\(trailLength), trailFade=\(trailFade)s)")
         #endif
     }
 
     private func tick() {
         lastFrameIndex &+= 1
-        guard let dot = overlay.dotView, !dot.isHidden, let cur = currentPoint, let tgt = targetPoint else {
-            return
+        guard let dot = overlay.dotView else { return }
+        if !dot.isHidden, let cur = currentPoint, let tgt = targetPoint {
+            // Dot visible and following a target — lerp + push a new stamp.
+            let alpha = CGFloat(smooth)
+            let next = CGPoint(
+                x: cur.x + (tgt.x - cur.x) * alpha,
+                y: cur.y + (tgt.y - cur.y) * alpha
+            )
+            currentPoint = next
+            dot.setPositionImmediate(next)
+        } else if trailLength > 0 {
+            // Dot hidden (or no target yet) but ink should keep fading.
+            dot.updateTrailFadesOnly()
         }
-        let alpha = CGFloat(smooth)
-        let next = CGPoint(
-            x: cur.x + (tgt.x - cur.x) * alpha,
-            y: cur.y + (tgt.y - cur.y) * alpha
-        )
-        currentPoint = next
-        dot.setPositionImmediate(next)
         if lastFrameIndex &- lastLoggedFrame >= 60 {
             lastLoggedFrame = lastFrameIndex
             #if DEBUG
-            print("[EventProcessor] 60Hz tick #\(lastFrameIndex) cur=\(next) tgt=\(tgt)")
+            print("[EventProcessor] 60Hz tick #\(lastFrameIndex) hidden=\(dot.isHidden) cur=\(String(describing: currentPoint))")
             #endif
         }
     }
@@ -81,10 +88,12 @@ final class EventProcessor: @unchecked Sendable {
             let point = overlay.pointFor(normalizedX: x, normalizedY: y, sensitivity: sensitivity)
             targetPoint = point
             if currentPoint == nil {
+                // First move after a hide: snap directly to the new spot (no
+                // interpolated line) but DON'T clear the existing ink — the
+                // stamps are independent and will continue to fade on their own.
                 currentPoint = point
-                overlay.dotView?.clearTrail()
                 #if DEBUG
-                print("[EventProcessor] initialized currentPoint=\(point), trail cleared")
+                print("[EventProcessor] initialized currentPoint=\(point) (ink preserved)")
                 #endif
             }
             scheduleAutoHide()
@@ -92,6 +101,7 @@ final class EventProcessor: @unchecked Sendable {
             // Reserved for phase 2
             break
         case .hide:
+            // Explicit hide from the client: turn off the laser AND clear ink.
             overlay.hide()
             overlay.dotView?.clearTrail()
             currentPoint = nil
@@ -112,12 +122,14 @@ final class EventProcessor: @unchecked Sendable {
         hideWorkItem?.cancel()
         guard hideDelay > 0 else { return } // --auto-hide 0 = stay visible forever
         let item = DispatchWorkItem { [weak self] in
+            // Hide the dot only — preserve the ink so the circle a user just
+            // drew keeps fading on screen. The 60Hz pump keeps rendering the
+            // stamps with their age-based opacity until they expire.
             self?.overlay.hide()
-            self?.overlay.dotView?.clearTrail()
             self?.currentPoint = nil
             self?.targetPoint = nil
             #if DEBUG
-            print("[EventProcessor] auto-hide fired after \(self?.hideDelay ?? 0)s")
+            print("[EventProcessor] auto-hide fired after \(self?.hideDelay ?? 0)s (ink preserved, fading)")
             #endif
         }
         hideWorkItem = item

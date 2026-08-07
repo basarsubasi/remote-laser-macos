@@ -6,7 +6,8 @@ struct Options {
     var sensitivity: Double = 1.0
     var dotSize: Double = 10         // dot radius in points
     var autoHide: Double = 1.0       // seconds of inactivity before the dot hides (0 = never)
-    var trailLength: Int = 0         // number of trailing segments to render (0 = no trail)
+    var trailLength: Int = 0         // max number of stamped trail segments kept in memory
+    var trailFade: Double = 2.0      // seconds for a stamp to fully fade (0 = never fade)
     var help: Bool = false
 
     static let usage = """
@@ -22,8 +23,13 @@ struct Options {
       --dot-size <1-200>      Dot radius in points (default: 10).
       --auto-hide <sec>       Seconds of inactivity before the dot hides (default: 1.0).
                               0 = never auto-hide.
-      --trail-length <0-200>  Number of fading trailing segments behind the dot
-                              (default: 0 = no trail). Larger = longer/more dramatic tail.
+      --trail-length <0-500>  Max number of stamp segments kept in the trail buffer
+                              (default: 0 = no trail). Stamps stay on screen and age
+                              independently of the dot — you can circle things and
+                              the mark lingers.
+      --trail-fade <0-60>     Seconds for a stamped segment to fade from full opacity
+                              to invisible (default: 2.0). 0 = never fade (capped only
+                              by --trail-length).
       -h, --help              Show this message and exit
     """
 
@@ -72,6 +78,12 @@ struct Options {
                 }
                 opts.trailLength = validateTrailLength(value)
                 i += 2
+            case "--trail-fade":
+                guard i + 1 < args.count, let value = Double(args[i + 1]) else {
+                    fail("--trail-fade requires a numeric value")
+                }
+                opts.trailFade = validateTrailFade(value)
+                i += 2
             default:
                 if let (_, v) = parseEquals(arg, "--port") {
                     guard let n = Int(v) else { fail("--port requires a numeric value") }
@@ -91,6 +103,9 @@ struct Options {
                 } else if let (_, v) = parseEquals(arg, "--trail-length") {
                     guard let n = Int(v) else { fail("--trail-length requires an integer value") }
                     opts.trailLength = validateTrailLength(n)
+                } else if let (_, v) = parseEquals(arg, "--trail-fade") {
+                    guard let n = Double(v) else { fail("--trail-fade requires a numeric value") }
+                    opts.trailFade = validateTrailFade(n)
                 } else {
                     fail("Unknown argument: \(arg)")
                 }
@@ -142,8 +157,15 @@ struct Options {
     }
 
     private static func validateTrailLength(_ value: Int) -> Int {
-        guard (0...200).contains(value) else {
-            fail("--trail-length must be between 0 and 200")
+        guard (0...500).contains(value) else {
+            fail("--trail-length must be between 0 and 500")
+        }
+        return value
+    }
+
+    private static func validateTrailFade(_ value: Double) -> Double {
+        guard (0...60).contains(value) else {
+            fail("--trail-fade must be between 0 and 60 seconds")
         }
         return value
     }

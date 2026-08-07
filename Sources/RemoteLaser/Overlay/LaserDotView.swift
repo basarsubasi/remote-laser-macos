@@ -7,12 +7,20 @@ final class LaserDotView: NSView {
     var dotRadius: CGFloat = 10
     var dotColor: NSColor = .systemRed
 
-    // Trail
+    // Trail: a ring buffer of stamps (position + birth time). Stamps stay at
+    // their original position and fade based on age; the dot leads and the
+    // stamps persist independently. Lets you "circle things" — the ink stays
+    // and fades out over `trailFade` seconds.
+    private struct Stamp {
+        var position: CGPoint
+        var birth: TimeInterval
+    }
+    private var stamps: [Stamp] = []
     private var trailLayers: [CALayer] = []
-    private var posBuffer: [CGPoint] = []
-    private var bufferCount = 0
-    private var bufferHead = 0      // index of newest sample
     private var trailLength: Int = 0
+    private var trailFade: TimeInterval = 2.0
+    private var pushCounter: UInt64 = 0
+    private var lastLoggedStamp: UInt64 = 0
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -56,23 +64,24 @@ final class LaserDotView: NSView {
         layout()
     }
 
-    /// Configure the trailing tail. `length` = number of fading segments behind the dot.
-    /// 0 disables the trail (removes all trail sublayers).
-    func setTrailLength(_ length: Int) {
-        let length = max(0, min(length, 200))
-        if length == trailLength { return }
+    /// Configure the persistent stamp trail.
+    /// - Parameters:
+    ///   - length: max number of stamps kept in memory (0 disables the trail).
+    ///   - fade: seconds for a stamp to fade from full to invisible (0 = never fade).
+    func setTrail(length: Int, fade: TimeInterval) {
+        let length = max(0, min(length, 500))
+        if length == trailLength && fade == trailFade { return }
         trailLength = length
+        trailFade = max(0, fade)
 
         // Tear down existing
         for tl in trailLayers { tl.removeFromSuperlayer() }
         trailLayers.removeAll()
-        posBuffer.removeAll()
-        bufferCount = 0
-        bufferHead = 0
+        stamps.removeAll()
 
         guard length > 0 else { return }
 
-        // Build trail sublayers, inserted below the main dot so the dot leads.
+        // Build a pool of `length` sublayers, inserted below the main dot.
         for _ in 0..<length {
             let tl = CALayer()
             tl.isOpaque = false
@@ -83,67 +92,85 @@ final class LaserDotView: NSView {
             layer?.insertSublayer(tl, below: dotLayer)
             trailLayers.append(tl)
         }
-
-        // Ring buffer holds the most recent (length + 1) positions.
-        let cap = length + 1
-        posBuffer.reserveCapacity(cap)
-        for _ in 0..<cap { posBuffer.append(.zero) }
-        bufferCount = 0
-        bufferHead = 0
     }
 
-    /// Snap directly to a point with no animation. Also pushes the point into
-    /// the trail ring buffer and updates every trail segment so the tail follows
-    /// the dot with a one-tick-per-segment stagger and a fade+width taper.
+    /// Snap the dot to a point with no animation, then push a new stamp into the
+    /// buffer at that position. Called once per 60Hz tick by the EventProcessor.
     func setPositionImmediate(_ point: CGPoint) {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         dotLayer.position = point
-        if trailLength > 0 { updateTrail(at: point) }
+        if trailLength > 0 { stamp(at: point) }
         CATransaction.commit()
         #if DEBUG
-        print("[LaserDotView] snap point=\(point) isHidden=\(isHidden) radius=\(dotRadius) trailLen=\(trailLength)")
+        print("[LaserDotView] snap point=\(point) radius=\(dotRadius) trail=\(trailLength) stamps=\(stamps.count)")
         #endif
     }
 
-    /// Wipe the trail buffer (call on hide / fresh re-appearance so the tail
-    /// doesn't draw a stray line across the screen from the old location).
-    func clearTrail() {
-        bufferCount = 0
-        bufferHead = 0
-        for tl in trailLayers { tl.opacity = 0 }
+    /// Re-render existing stamps based on their current age only — do NOT push
+    /// a new stamp. Called by the 60Hz pump when the dot is hidden so the ink
+    /// keeps fading on screen after the dot has gone.
+    func updateTrailFadesOnly() {
+        guard trailLength > 0, !stamps.isEmpty else { return }
+        renderTrail(now: ProcessInfo.processInfo.systemUptime)
     }
 
-    private func updateTrail(at point: CGPoint) {
-        let cap = posBuffer.count
-        guard cap > 0 else { return }
+    /// Wipe the stamp buffer immediately (hides all ink). Call on hide, or when
+    /// the dot re-appears after being hidden, so a fresh session doesn't show
+    /// a stray line from the previous session's last position.
+    func clearTrail() {
+        stamps.removeAll()
+        for tl in trailLayers { tl.opacity = 0 }
+        #if DEBUG
+        print("[LaserDotView] clearTrail — stamps wiped")
+        #endif
+    }
 
-        // Push the new sample into the ring buffer.
-        if bufferCount < cap {
-            // fill phase: append straight after head
-            posBuffer[bufferHead] = point
-            bufferHead = (bufferHead + 1) % cap
-            bufferCount += 1
-        } else {
-            posBuffer[bufferHead] = point
-            bufferHead = (bufferHead + 1) % cap
+    private func stamp(at point: CGPoint) {
+        let now = ProcessInfo.processInfo.systemUptime
+        stamps.append(Stamp(position: point, birth: now))
+        pushCounter &+= 1
+
+        // Drop expired (faded) stamps. If fade == 0, never drop by age.
+        if trailFade > 0 {
+            let cutoff = now - trailFade
+            while let first = stamps.first, first.birth < cutoff {
+                stamps.removeFirst()
+            }
+        }
+        // Cap by buffer length.
+        while stamps.count > trailLength {
+            stamps.removeFirst()
         }
 
-        // Walk trail segments from newest-oldest-nearest to oldest-farthest.
-        // Segment i shows the sample (i+1) ticks ago.
-        let n = trailLayers.count
-        for i in 0..<n {
-            // index into ring buffer: (head - 1 - i) mod cap gives (i+1)-th newest
-            let idx = ((bufferHead - 1 - i - 1) % cap + cap) % cap
-            let p = posBuffer[idx]
-            // Distance from head: i+1 = recent; close samples get bigger, more opaque.
-            let t = CGFloat(i) / CGFloat(max(n, 1))   // 0 (near dot) → 1 (tail tip)
-            let r = dotRadius * (1.0 - 0.75 * t)      // taper width to 25% at the tip
-            let layer = trailLayers[i]
-            layer.position = p
-            layer.bounds = CGRect(x: 0, y: 0, width: r * 2, height: r * 2)
-            layer.cornerRadius = r
-            layer.opacity = Float(0.7 * (1.0 - t))
+        renderTrail(now: now)
+
+        if pushCounter &- lastLoggedStamp >= 60 {
+            lastLoggedStamp = pushCounter
+            #if DEBUG
+            print("[LaserDotView] stamp #\(pushCounter) live=\(stamps.count)/\(trailLength) fade=\(trailFade)s")
+            #endif
+        }
+    }
+
+    private func renderTrail(now: TimeInterval) {
+        let n = stamps.count
+        for i in 0..<trailLayers.count {
+            let tl = trailLayers[i]
+            if i >= n {
+                tl.opacity = 0
+                continue
+            }
+            let s = stamps[i]
+            let age = now - s.birth
+            let t = trailFade > 0 ? min(max(age / trailFade, 0), 1) : 0
+            // Smoothstep-ish fade: hold near full then ease out near the end.
+            let opacity = 0.85 * (1.0 - t * t)
+            let radius = dotRadius * (1.0 - 0.5 * t)
+            tl.position = s.position
+            tl.bounds = CGRect(x: 0, y: 0, width: radius * 2, height: radius * 2)
+            tl.cornerRadius = radius
+            tl.opacity = Float(opacity)
         }
     }
 }
