@@ -21,8 +21,22 @@ final class LaserServer: @unchecked Sendable {
         task = Task.detached { [weak self] in
             let wsRouter = Router(context: BasicWebSocketRequestContext.self)
 
-            wsRouter.ws("/laser") { _, _ in
-                .upgrade()
+            wsRouter.ws("/laser") { request, context in
+                let origin = request.headers[.origin]
+                        ?? request.headers[values: .origin].first
+                        ?? "<unknown>"
+                let userAgent = request.headers[.userAgent] ?? "<unknown>"
+                let remoteHint: String = request.head.authority ?? "<unknown>"
+
+                print("\n[RemoteLaser] Incoming WebSocket connection request:")
+                print("  Origin:       \(origin)")
+                print("  User-Agent:   \(userAgent)")
+                print("  Remote hint:  \(remoteHint)")
+                print("  Allow this connection? [y/N] ", terminator: "")
+
+                let allowed = await Self.confirmOnCLI()
+                context.logger.info("Connection \(allowed ? "allowed" : "denied") by CLI")
+                return allowed ? .upgrade([:]) : .dontUpgrade
             } onUpgrade: { inbound, outbound, context in
                 context.logger.info("Client connected")
                 let size = await MainActor.run {
@@ -75,5 +89,19 @@ final class LaserServer: @unchecked Sendable {
     func stop() {
         task?.cancel()
         task = nil
+    }
+
+    /// Prompt the user on the CLI for a yes/no confirmation.
+    /// Accepts `y` / `yes` (case-insensitive). Anything else, including
+    /// EOF/empty input, is treated as "no". Blocks until input is received.
+    private static func confirmOnCLI() async -> Bool {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global().async {
+                let line = readLine()?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                let lower = line.lowercased()
+                let allowed = lower == "y" || lower == "yes"
+                continuation.resume(returning: allowed)
+            }
+        }
     }
 }
