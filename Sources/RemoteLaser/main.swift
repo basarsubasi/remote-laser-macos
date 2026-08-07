@@ -16,7 +16,8 @@ let delegate = AppDelegate(port: options.port,
                            smooth: options.smooth,
                            sensitivity: options.sensitivity,
                            dotSize: options.dotSize,
-                           autoHide: options.autoHide)
+                           autoHide: options.autoHide,
+                           trailLength: options.trailLength)
 application.delegate = delegate
 application.setActivationPolicy(.accessory)
 application.run()

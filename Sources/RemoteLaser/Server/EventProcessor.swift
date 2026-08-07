@@ -8,6 +8,7 @@ final class EventProcessor: @unchecked Sendable {
     private let smooth: Double
     private let sensitivity: Double
     private let dotSize: CGFloat
+    private let trailLength: Int
 
     // 60Hz pump
     private var displayTimer: DispatchSourceTimer?
@@ -20,24 +21,27 @@ final class EventProcessor: @unchecked Sendable {
          smooth: Double = 0.2,
          sensitivity: Double = 1.0,
          dotSize: Double = 10,
-         autoHide: Double = 1.0) {
+         autoHide: Double = 1.0,
+         trailLength: Int = 0) {
         self.overlay = overlay
         self.smooth = smooth
         self.sensitivity = sensitivity
         self.dotSize = CGFloat(dotSize)
         self.hideDelay = max(0, autoHide)
+        self.trailLength = trailLength
     }
 
     func startDisplayLink() {
         guard displayTimer == nil else { return }
         overlay.dotView?.setDotRadius(dotSize)
+        overlay.dotView?.setTrailLength(trailLength)
         let timer = DispatchSource.makeTimerSource(queue: .main)
         timer.schedule(deadline: .now(), repeating: 1.0 / 60.0)
         timer.setEventHandler { [weak self] in self?.tick() }
         timer.resume()
         displayTimer = timer
         #if DEBUG
-        print("[EventProcessor] 60Hz pump started (smooth=\(smooth), dotSize=\(dotSize))")
+        print("[EventProcessor] 60Hz pump started (smooth=\(smooth), dotSize=\(dotSize), trailLength=\(trailLength))")
         #endif
     }
 
@@ -78,8 +82,9 @@ final class EventProcessor: @unchecked Sendable {
             targetPoint = point
             if currentPoint == nil {
                 currentPoint = point
+                overlay.dotView?.clearTrail()
                 #if DEBUG
-                print("[EventProcessor] initialized currentPoint=\(point)")
+                print("[EventProcessor] initialized currentPoint=\(point), trail cleared")
                 #endif
             }
             scheduleAutoHide()
@@ -88,6 +93,7 @@ final class EventProcessor: @unchecked Sendable {
             break
         case .hide:
             overlay.hide()
+            overlay.dotView?.clearTrail()
             currentPoint = nil
             targetPoint = nil
         }
@@ -95,6 +101,7 @@ final class EventProcessor: @unchecked Sendable {
 
     func reset() {
         overlay.hide()
+        overlay.dotView?.clearTrail()
         hideWorkItem?.cancel()
         hideWorkItem = nil
         currentPoint = nil
@@ -106,6 +113,7 @@ final class EventProcessor: @unchecked Sendable {
         guard hideDelay > 0 else { return } // --auto-hide 0 = stay visible forever
         let item = DispatchWorkItem { [weak self] in
             self?.overlay.hide()
+            self?.overlay.dotView?.clearTrail()
             self?.currentPoint = nil
             self?.targetPoint = nil
             #if DEBUG

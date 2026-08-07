@@ -5,10 +5,11 @@ A macOS laser-pointer overlay controlled from a phone over WebSocket.
 - Borderless, transparent `NSWindow` at screen-saver level with `ignoresMouseEvents` — does not interfere with the mouse or any app underneath.
 - Hummingbird WebSocket server on `0.0.0.0:<port>/laser` (default `8080`, configurable via `--port`), reachable from a phone on the same LAN.
 - The laser dot is a single solid `CALayer` (no glow) whose position is updated by a 60Hz timer that lerps toward the latest WS-incoming target. Smoothness is decoupled from the WS frame rate.
+- Optional **tapering trail** behind the dot: a ring buffer of recent 60Hz positions renders as fading, width-tapering dots. Length configurable via `--trail-length <0-200>` (0 = off).
 - Size configurable via `--dot-size <points>` (radius), and the smoothing factor via `--smooth <0-1>` (lerp alpha per 60Hz frame).
 - Coordinates are normalized `0..1` per axis; the server maps to the active screen's `visibleFrame` and clamps (never under menu bar / Dock).
 - Menu-bar app: `LSUIElement` (no Dock icon), single-icon menu with Quit.
-- Auto-hides the dot after ~4s of inactivity.
+- Auto-hides the dot after `--auto-hide <sec>` seconds of inactivity (default 1s; 0 = never).
 
 ## Layout
 
@@ -69,6 +70,7 @@ Flag reference:
 | `--smooth <n>` | 0-1 | `0.2` | Lerp alpha per 60Hz frame. 1 = instant snap, smaller = smoother/slower chase |
 | `--sensitivity <n>` | 0.1-10 | `1.0` | Input gain around screen center. >1 amplifies finger movement |
 | `--auto-hide <n>` | 0-3600 | `1.0` | Seconds of inactivity before the dot hides. 0 = never hide |
+| `--trail-length <n>` | 0-200 | `0` | Number of fading trailing segments behind the dot. 0 = no trail; higher = longer, more dramatic tail |
 
 The bundled `.app` (via `open build/RemoteLaser.app`) always uses the default port because `open` does not forward args; to set a port on the bundled binary, invoke the executable inside the bundle directly as above, or rebuild with `build.sh` after editing the default in `Sources/RemoteLaser/Util/Options.swift`.
 

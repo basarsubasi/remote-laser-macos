@@ -6,6 +6,7 @@ struct Options {
     var sensitivity: Double = 1.0
     var dotSize: Double = 10         // dot radius in points
     var autoHide: Double = 1.0       // seconds of inactivity before the dot hides (0 = never)
+    var trailLength: Int = 0         // number of trailing segments to render (0 = no trail)
     var help: Bool = false
 
     static let usage = """
@@ -21,6 +22,8 @@ struct Options {
       --dot-size <1-200>      Dot radius in points (default: 10).
       --auto-hide <sec>       Seconds of inactivity before the dot hides (default: 1.0).
                               0 = never auto-hide.
+      --trail-length <0-200>  Number of fading trailing segments behind the dot
+                              (default: 0 = no trail). Larger = longer/more dramatic tail.
       -h, --help              Show this message and exit
     """
 
@@ -63,6 +66,12 @@ struct Options {
                 }
                 opts.autoHide = validateAutoHide(value)
                 i += 2
+            case "--trail-length":
+                guard i + 1 < args.count, let value = Int(args[i + 1]) else {
+                    fail("--trail-length requires an integer value")
+                }
+                opts.trailLength = validateTrailLength(value)
+                i += 2
             default:
                 if let (_, v) = parseEquals(arg, "--port") {
                     guard let n = Int(v) else { fail("--port requires a numeric value") }
@@ -79,6 +88,9 @@ struct Options {
                 } else if let (_, v) = parseEquals(arg, "--auto-hide") {
                     guard let n = Double(v) else { fail("--auto-hide requires a numeric value") }
                     opts.autoHide = validateAutoHide(n)
+                } else if let (_, v) = parseEquals(arg, "--trail-length") {
+                    guard let n = Int(v) else { fail("--trail-length requires an integer value") }
+                    opts.trailLength = validateTrailLength(n)
                 } else {
                     fail("Unknown argument: \(arg)")
                 }
@@ -125,6 +137,13 @@ struct Options {
     private static func validateAutoHide(_ value: Double) -> Double {
         guard (0...3600).contains(value) else {
             fail("--auto-hide must be between 0 (never) and 3600 seconds")
+        }
+        return value
+    }
+
+    private static func validateTrailLength(_ value: Int) -> Int {
+        guard (0...200).contains(value) else {
+            fail("--trail-length must be between 0 and 200")
         }
         return value
     }

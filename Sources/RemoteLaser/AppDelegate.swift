@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let sensitivity: Double
     private let dotSize: Double
     private let autoHide: Double
+    private let trailLength: Int
     private var statusItem: NSStatusItem?
     private var overlay: LaserOverlayController!
     private var processor: EventProcessor!
@@ -17,12 +18,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
          smooth: Double = 0.2,
          sensitivity: Double = 1.0,
          dotSize: Double = 10,
-         autoHide: Double = 1.0) {
+         autoHide: Double = 1.0,
+         trailLength: Int = 0) {
         self.port = port
         self.smooth = smooth
         self.sensitivity = sensitivity
         self.dotSize = dotSize
         self.autoHide = autoHide
+        self.trailLength = trailLength
         super.init()
     }
 
@@ -33,7 +36,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                    smooth: smooth,
                                    sensitivity: sensitivity,
                                    dotSize: dotSize,
-                                   autoHide: autoHide)
+                                   autoHide: autoHide,
+                                   trailLength: trailLength)
         processor.startDisplayLink()
 
         let processor = self.processor!
