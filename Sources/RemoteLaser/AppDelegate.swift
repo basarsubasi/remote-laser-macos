@@ -50,13 +50,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         dv.layout()
         dv.needsLayout = true
+        dv.dotRadius = 22
+        dv.glowRadius = 90
+        dv.layout()
         let center = CGPoint(x: NSMidX(dv.bounds), y: NSMidY(dv.bounds))
-        print("[Diagnostic] showing test dot at center \(center) bounds=\(dv.bounds) for 2 seconds…")
+        print("[Diagnostic] *** Showing BIG test dot at screen CENTER \(center) for 5 seconds ***")
+        print("[Diagnostic] bounds=\(dv.bounds)")
         dv.isHidden = false
         dv.moveTo(center, duration: 0)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) { [weak self] in
             self?.overlay.hide()
-            print("[Diagnostic] test dot hidden")
+            dv.dotRadius = 10
+            dv.glowRadius = 44
+            dv.layout()
+            print("[Diagnostic] test dot hidden, reverting to normal size")
         }
     }
 

@@ -55,6 +55,13 @@
     <button id="connect">Connect</button>
     <span id="status">disconnected</span>
   </div>
+  <div class="row" style="gap:12px;">
+    <button id="testDot">Send Test Dot (center)</button>
+    <button id="sweep">Sweep across screen</button>
+    <label style="min-width:auto;cursor:pointer;">
+      <input type="checkbox" id="keepSending" style="width:auto;"> keep sending on release
+    </label>
+  </div>
 </header>
 <div id="pad">
   <div id="dot"></div>
@@ -72,6 +79,7 @@ const hint = document.getElementById('hint');
 
 let ws = null;
 let active = false;
+let keepSendingOnRelease = false;
 
 btn.addEventListener('click', () => {
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
@@ -136,11 +144,37 @@ function endDrag(e) {
   if (!active) return;
   active = false;
   pad.classList.remove('active');
-  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'hide' }));
+  // Don't send hide — let the server's 4s auto-hide handle it
+  // so a quick tap/click still shows the dot briefly
 }
 pad.addEventListener('pointerup', endDrag);
 pad.addEventListener('pointercancel', endDrag);
 pad.addEventListener('pointerleave', endDrag);
+
+// === Test controls ===
+
+document.getElementById('testDot').addEventListener('click', () => {
+  if (!ws || ws.readyState !== WebSocket.OPEN) { alert('Not connected'); return; }
+  ws.send(JSON.stringify({ type: 'move', x: 0.5, y: 0.5 }));
+  updateDot(0.5, 0.5);
+});
+
+document.getElementById('sweep').addEventListener('click', () => {
+  if (!ws || ws.readyState !== WebSocket.OPEN) { alert('Not connected'); return; }
+  let t = 0;
+  const id = setInterval(() => {
+    const x = 0.5 + 0.45 * Math.sin(t);
+    const y = 0.5 + 0.30 * Math.cos(t * 1.3);
+    updateDot(x, y);
+    ws.send(JSON.stringify({ type: 'move', x, y }));
+    t += 0.1;
+    if (t > 4 * Math.PI) clearInterval(id);
+  }, 50);
+});
+
+document.getElementById('keepSending').addEventListener('change', (e) => {
+  keepSendingOnRelease = e.target.checked;
+});
 </script>
 </body>
 </html>
