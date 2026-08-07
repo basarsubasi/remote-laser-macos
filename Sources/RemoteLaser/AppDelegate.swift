@@ -56,7 +56,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         server.start()
         self.server = server
 
-        showDiagnosticDot()
         setupStatusItem()
         print("RemoteLaser listening on ws://0.0.0.0:\(port)/laser")
         print("LAN IP hint: \(primaryLANIP() ?? "<unknown>")")
@@ -67,27 +66,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         print("[RemoteLaser] terminating — stopping server…")
         server?.stop()
         print("[RemoteLaser] bye.")
-    }
-
-    private func showDiagnosticDot() {
-        guard let dv = overlay.dotView else {
-            print("[Diagnostic] dotView is nil!" )
-            return
-        }
-        let saveRadius = dv.dotRadius
-        let radius = max(20, saveRadius * 2)
-        dv.setDotRadius(radius)
-        dv.layout()
-        let center = CGPoint(x: NSMidX(dv.bounds), y: NSMidY(dv.bounds))
-        print("[Diagnostic] *** Showing BIG test dot at screen CENTER \(center) for 5 seconds ***")
-        print("[Diagnostic] bounds=\(dv.bounds) temporarilyRadius=\(radius) (configured \(saveRadius))")
-        dv.isHidden = false
-        dv.setPositionImmediate(center)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) { [weak self] in
-            self?.overlay.hide()
-            dv.setDotRadius(saveRadius)
-            print("[Diagnostic] test dot hidden, reverted radius to \(saveRadius)")
-        }
     }
 
     // MARK: - Menu bar
