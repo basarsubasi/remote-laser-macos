@@ -4,7 +4,8 @@ A macOS laser-pointer overlay controlled from a phone over WebSocket.
 
 - Borderless, transparent `NSWindow` at screen-saver level with `ignoresMouseEvents` — does not interfere with the mouse or any app underneath.
 - Hummingbird WebSocket server on `0.0.0.0:<port>/laser` (default `8080`, configurable via `--port`), reachable from a phone on the same LAN.
-- The laser dot is a `CALayer` (crisp core + radial gradient glow) animated with a short Core Animation tween so discrete WS move samples interpolate smoothly.
+- The laser dot is a single solid `CALayer` (no glow) whose position is updated by a 60Hz timer that lerps toward the latest WS-incoming target. Smoothness is decoupled from the WS frame rate.
+- Size configurable via `--dot-size <points>` (radius), and the smoothing factor via `--smooth <0-1>` (lerp alpha per 60Hz frame).
 - Coordinates are normalized `0..1` per axis; the server maps to the active screen's `visibleFrame` and clamps (never under menu bar / Dock).
 - Menu-bar app: `LSUIElement` (no Dock icon), single-icon menu with Quit.
 - Auto-hides the dot after ~4s of inactivity.
@@ -51,13 +52,22 @@ Requires Swift 5.10+ and macOS 14+.
 
 ```bash
 ./build.sh            # produces build/RemoteLaser.app
-./run                 # quick debug run via swift run (port 8080, speed 0.12s)
-./run --port 9000     # quick debug run on a custom port
-./run --speed 0.05    # snappier slide (lower = faster)
-./run --speed 0.3     # smoother/slower slide
-./run --speed 0       # no animation, instant jumps
-./build/RemoteLaser.app/Contents/MacOS/RemoteLaser --port 9000 --speed 0.2   # bundled binary w/ flags
+./run                 # quick debug run via swift run (defaults: port 8080, dot 10pt, smooth 0.35)
+./run --port 9000
+./run --dot-size 14 --smooth 0.5            # bigger dot, snappier chase
+./run --dot-size 6  --smooth 0.2           # tiny dot, dreamy glide
+./run --sensitivity 2 --dot-size 20        # amplified movement, big dot
+./build/RemoteLaser.app/Contents/MacOS/RemoteLaser --port 9000 --dot-size 16 --smooth 0.4
 ```
+
+Flag reference:
+
+| Flag | Range | Default | What it does |
+|---|---|---|---|
+| `--port <n>` | 1-65535 | `8080` | WebSocket server port |
+| `--dot-size <n>` | 1-200 | `10` | Dot radius in points |
+| `--smooth <n>` | 0-1 | `0.35` | Lerp alpha per 60Hz frame. 1 = instant snap, smaller = smoother/slower chase |
+| `--sensitivity <n>` | 0.1-10 | `1.0` | Input gain around screen center. >1 amplifies finger movement |
 
 The bundled `.app` (via `open build/RemoteLaser.app`) always uses the default port because `open` does not forward args; to set a port on the bundled binary, invoke the executable inside the bundle directly as above, or rebuild with `build.sh` after editing the default in `Sources/RemoteLaser/Util/Options.swift`.
 

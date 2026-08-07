@@ -12,7 +12,10 @@ if options.help {
 }
 
 let application = NSApplication.shared
-let delegate = AppDelegate(port: options.port, speed: options.speed, sensitivity: options.sensitivity)
+let delegate = AppDelegate(port: options.port,
+                           smooth: options.smooth,
+                           sensitivity: options.sensitivity,
+                           dotSize: options.dotSize)
 application.delegate = delegate
 application.setActivationPolicy(.accessory)
 application.run()

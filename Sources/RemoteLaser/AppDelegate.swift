@@ -4,25 +4,33 @@ import Darwin
 final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private let port: Int
-    private let speed: Double
+    private let smooth: Double
     private let sensitivity: Double
+    private let dotSize: Double
     private var statusItem: NSStatusItem?
     private var overlay: LaserOverlayController!
     private var processor: EventProcessor!
     private var server: LaserServer!
-    private var autoStarted = false
 
-    init(port: Int = 8080, speed: Double = 0.12, sensitivity: Double = 1.0) {
+    init(port: Int = 8080,
+         smooth: Double = 0.35,
+         sensitivity: Double = 1.0,
+         dotSize: Double = 10) {
         self.port = port
-        self.speed = speed
+        self.smooth = smooth
         self.sensitivity = sensitivity
+        self.dotSize = dotSize
         super.init()
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         overlay = LaserOverlayController()
         overlay.install()
-        processor = EventProcessor(overlay: overlay, speed: speed, sensitivity: sensitivity)
+        processor = EventProcessor(overlay: overlay,
+                                   smooth: smooth,
+                                   sensitivity: sensitivity,
+                                   dotSize: dotSize)
+        processor.startDisplayLink()
 
         let processor = self.processor!
         let server = LaserServer(port: port) { event in
@@ -48,22 +56,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             print("[Diagnostic] dotView is nil!" )
             return
         }
-        dv.layout()
-        dv.needsLayout = true
-        dv.dotRadius = 22
-        dv.glowRadius = 90
+        let saveRadius = dv.dotRadius
+        let radius = max(20, saveRadius * 2)
+        dv.setDotRadius(radius)
         dv.layout()
         let center = CGPoint(x: NSMidX(dv.bounds), y: NSMidY(dv.bounds))
         print("[Diagnostic] *** Showing BIG test dot at screen CENTER \(center) for 5 seconds ***")
-        print("[Diagnostic] bounds=\(dv.bounds)")
+        print("[Diagnostic] bounds=\(dv.bounds) temporarilyRadius=\(radius) (configured \(saveRadius))")
         dv.isHidden = false
-        dv.moveTo(center, duration: 0)
+        dv.setPositionImmediate(center)
         DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) { [weak self] in
             self?.overlay.hide()
-            dv.dotRadius = 10
-            dv.glowRadius = 44
-            dv.layout()
-            print("[Diagnostic] test dot hidden, reverting to normal size")
+            dv.setDotRadius(saveRadius)
+            print("[Diagnostic] test dot hidden, reverted radius to \(saveRadius)")
         }
     }
 

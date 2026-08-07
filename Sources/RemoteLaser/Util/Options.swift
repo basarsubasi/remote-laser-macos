@@ -2,21 +2,23 @@ import Foundation
 
 struct Options {
     var port: Int = 8080
-    var speed: Double = 0.12
+    var smooth: Double = 0.35         // lerp alpha per 60Hz frame [0..1]
     var sensitivity: Double = 1.0
+    var dotSize: Double = 10          // dot radius in points
     var help: Bool = false
 
     static let usage = """
-    Usage: RemoteLaser [--port <1-65535>] [--speed <0-2>] [--sensitivity <0.1-10>] [-h|--help]
+    Usage: RemoteLaser [options]
 
     Options:
-      --port <n>           WebSocket server port (default: 8080)
-      --speed <sec>        Dot slide animation duration in seconds (default: 0.12).
-                          0 = instant (no slide), higher = smoother/slower slide.
-      --sensitivity <n>    Input gain around screen center (default: 1.0).
-                          >1 amplifies finger movement (dot covers more distance),
-                          <1 dampens it (dot moves less per finger drag).
-      -h, --help           Show this message and exit
+      --port <1-65535>        WebSocket server port (default: 8080)
+      --smooth <0-1>          Lerp factor per 60Hz frame (default: 0.35).
+                              0 = never moves, 1 = instant snap,
+                              ~0.3 = smooth chase of incoming targets.
+      --sensitivity <0.1-10>  Input gain around screen center (default: 1.0).
+                              >1 amplifies finger movement, <1 dampens it.
+      --dot-size <1-200>      Dot radius in points (default: 10).
+      -h, --help              Show this message and exit
     """
 
     static func parse(_ args: [String]) -> Options {
@@ -34,11 +36,11 @@ struct Options {
                 }
                 opts.port = validatePort(value)
                 i += 2
-            case "--speed":
+            case "--smooth":
                 guard i + 1 < args.count, let value = Double(args[i + 1]) else {
-                    fail("--speed requires a numeric value")
+                    fail("--smooth requires a numeric value")
                 }
-                opts.speed = validateSpeed(value)
+                opts.smooth = validateAlpha(value, flag: "--smooth")
                 i += 2
             case "--sensitivity":
                 guard i + 1 < args.count, let value = Double(args[i + 1]) else {
@@ -46,28 +48,38 @@ struct Options {
                 }
                 opts.sensitivity = validateSensitivity(value)
                 i += 2
+            case "--dot-size":
+                guard i + 1 < args.count, let value = Double(args[i + 1]) else {
+                    fail("--dot-size requires a numeric value")
+                }
+                opts.dotSize = validateDotSize(value)
+                i += 2
             default:
-                if arg.hasPrefix("--port=") {
-                    let value = String(arg.dropFirst("--port=".count))
-                    guard let n = Int(value) else { fail("--port requires a numeric value") }
+                if let (_, v) = parseEquals(arg, "--port") {
+                    guard let n = Int(v) else { fail("--port requires a numeric value") }
                     opts.port = validatePort(n)
-                    i += 1
-                } else if arg.hasPrefix("--speed=") {
-                    let value = String(arg.dropFirst("--speed=".count))
-                    guard let n = Double(value) else { fail("--speed requires a numeric value") }
-                    opts.speed = validateSpeed(n)
-                    i += 1
-                } else if arg.hasPrefix("--sensitivity=") {
-                    let value = String(arg.dropFirst("--sensitivity=".count))
-                    guard let n = Double(value) else { fail("--sensitivity requires a numeric value") }
+                } else if let (_, v) = parseEquals(arg, "--smooth") {
+                    guard let n = Double(v) else { fail("--smooth requires a numeric value") }
+                    opts.smooth = validateAlpha(n, flag: "--smooth")
+                } else if let (_, v) = parseEquals(arg, "--sensitivity") {
+                    guard let n = Double(v) else { fail("--sensitivity requires a numeric value") }
                     opts.sensitivity = validateSensitivity(n)
-                    i += 1
+                } else if let (_, v) = parseEquals(arg, "--dot-size") {
+                    guard let n = Double(v) else { fail("--dot-size requires a numeric value") }
+                    opts.dotSize = validateDotSize(n)
                 } else {
                     fail("Unknown argument: \(arg)")
                 }
+                i += 1
             }
         }
         return opts
+    }
+
+    private static func parseEquals(_ arg: String, _ key: String) -> (String, String)? {
+        let prefix = key + "="
+        guard arg.hasPrefix(prefix) else { return nil }
+        return (key, String(arg.dropFirst(prefix.count)))
     }
 
     private static func validatePort(_ value: Int) -> Int {
@@ -77,9 +89,9 @@ struct Options {
         return value
     }
 
-    private static func validateSpeed(_ value: Double) -> Double {
-        guard (0...2).contains(value) else {
-            fail("--speed must be between 0 and 2 seconds")
+    private static func validateAlpha(_ value: Double, flag: String) -> Double {
+        guard (0...1).contains(value) else {
+            fail("\(flag) must be between 0 and 1")
         }
         return value
     }
@@ -87,6 +99,13 @@ struct Options {
     private static func validateSensitivity(_ value: Double) -> Double {
         guard (0.1...10).contains(value) else {
             fail("--sensitivity must be between 0.1 and 10")
+        }
+        return value
+    }
+
+    private static func validateDotSize(_ value: Double) -> Double {
+        guard (1...200).contains(value) else {
+            fail("--dot-size must be between 1 and 200 points")
         }
         return value
     }
