@@ -7,19 +7,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let smooth: Double
     private let sensitivity: Double
     private let dotSize: Double
+    private let autoHide: Double
     private var statusItem: NSStatusItem?
     private var overlay: LaserOverlayController!
     private var processor: EventProcessor!
     private var server: LaserServer!
 
     init(port: Int = 8080,
-         smooth: Double = 0.35,
+         smooth: Double = 0.2,
          sensitivity: Double = 1.0,
-         dotSize: Double = 10) {
+         dotSize: Double = 10,
+         autoHide: Double = 1.0) {
         self.port = port
         self.smooth = smooth
         self.sensitivity = sensitivity
         self.dotSize = dotSize
+        self.autoHide = autoHide
         super.init()
     }
 
@@ -29,7 +32,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         processor = EventProcessor(overlay: overlay,
                                    smooth: smooth,
                                    sensitivity: sensitivity,
-                                   dotSize: dotSize)
+                                   dotSize: dotSize,
+                                   autoHide: autoHide)
         processor.startDisplayLink()
 
         let processor = self.processor!

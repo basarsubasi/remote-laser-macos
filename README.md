@@ -66,8 +66,9 @@ Flag reference:
 |---|---|---|---|
 | `--port <n>` | 1-65535 | `8080` | WebSocket server port |
 | `--dot-size <n>` | 1-200 | `10` | Dot radius in points |
-| `--smooth <n>` | 0-1 | `0.35` | Lerp alpha per 60Hz frame. 1 = instant snap, smaller = smoother/slower chase |
+| `--smooth <n>` | 0-1 | `0.2` | Lerp alpha per 60Hz frame. 1 = instant snap, smaller = smoother/slower chase |
 | `--sensitivity <n>` | 0.1-10 | `1.0` | Input gain around screen center. >1 amplifies finger movement |
+| `--auto-hide <n>` | 0-3600 | `1.0` | Seconds of inactivity before the dot hides. 0 = never hide |
 
 The bundled `.app` (via `open build/RemoteLaser.app`) always uses the default port because `open` does not forward args; to set a port on the bundled binary, invoke the executable inside the bundle directly as above, or rebuild with `build.sh` after editing the default in `Sources/RemoteLaser/Util/Options.swift`.
 

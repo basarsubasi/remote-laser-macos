@@ -4,7 +4,7 @@ import AppKit
 final class EventProcessor: @unchecked Sendable {
     private let overlay: LaserOverlayController
     private var hideWorkItem: DispatchWorkItem?
-    private let hideDelay: TimeInterval = 4
+    private let hideDelay: TimeInterval
     private let smooth: Double
     private let sensitivity: Double
     private let dotSize: CGFloat
@@ -17,13 +17,15 @@ final class EventProcessor: @unchecked Sendable {
     private var lastLoggedFrame: UInt64 = 0
 
     init(overlay: LaserOverlayController,
-         smooth: Double = 0.35,
+         smooth: Double = 0.2,
          sensitivity: Double = 1.0,
-         dotSize: Double = 10) {
+         dotSize: Double = 10,
+         autoHide: Double = 1.0) {
         self.overlay = overlay
         self.smooth = smooth
         self.sensitivity = sensitivity
         self.dotSize = CGFloat(dotSize)
+        self.hideDelay = max(0, autoHide)
     }
 
     func startDisplayLink() {
@@ -101,12 +103,13 @@ final class EventProcessor: @unchecked Sendable {
 
     private func scheduleAutoHide() {
         hideWorkItem?.cancel()
+        guard hideDelay > 0 else { return } // --auto-hide 0 = stay visible forever
         let item = DispatchWorkItem { [weak self] in
             self?.overlay.hide()
             self?.currentPoint = nil
             self?.targetPoint = nil
             #if DEBUG
-            print("[EventProcessor] auto-hide fired")
+            print("[EventProcessor] auto-hide fired after \(self?.hideDelay ?? 0)s")
             #endif
         }
         hideWorkItem = item

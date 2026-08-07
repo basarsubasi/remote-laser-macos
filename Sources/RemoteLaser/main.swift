@@ -15,7 +15,8 @@ let application = NSApplication.shared
 let delegate = AppDelegate(port: options.port,
                            smooth: options.smooth,
                            sensitivity: options.sensitivity,
-                           dotSize: options.dotSize)
+                           dotSize: options.dotSize,
+                           autoHide: options.autoHide)
 application.delegate = delegate
 application.setActivationPolicy(.accessory)
 application.run()

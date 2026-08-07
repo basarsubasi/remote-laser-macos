@@ -2,51 +2,94 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, maximum-scale=1"/>
 <title>RemoteLaser Test Client</title>
 <style>
   :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
   html, body {
     margin: 0; padding: 0; height: 100%;
     font: 14px -apple-system, system-ui, sans-serif;
     background: #1a1a1a; color: #eee;
-    touch-action: none; overscroll-behavior: none;
+    touch-action: none; overscroll-behavior: none; user-select: none;
   }
-  header {
-    padding: 12px 16px; display: flex; flex-direction: column; gap: 8px;
-  }
-  h1 { margin: 0; font-size: 16px; font-weight: 600; }
-  .row { display: flex; gap: 8px; align-items: center; }
+  body { display: flex; flex-direction: column; }
+  header { padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; }
+  h1 { margin: 0; font-size: 15px; font-weight: 600; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   label { font-size: 12px; opacity: 0.7; min-width: 38px; }
-  input, button {
+  input, button, select {
     font: inherit; padding: 6px 10px; border-radius: 8px;
     border: 1px solid #444; background: #2a2a2a; color: #eee;
   }
-  input[type=number] { width: 70px; }
-  button { cursor: pointer; }
+  input[type=number] { width: 64px; }
+  input[type=range] { width: 110px; vertical-align: middle; }
+  button { cursor: pointer; min-width: 84px; }
+  button:active { background: #3a3a3a; }
   #connect { min-width: 96px; }
   #status { font-size: 12px; opacity: 0.6; flex: 1; text-align: right; }
-  #pad {
-    flex: 1; margin: 12px 16px 16px;
-    border-radius: 16px; border: 2px dashed #555;
-    background: linear-gradient(135deg, #262626, #1f1f1f);
-    position: relative; cursor: crosshair; touch-action: none;
-    display: flex; align-items: center; justify-content: center;
-    color: #666; user-select: none;
+
+  main {
+    flex: 1; display: flex; gap: 14px; padding: 0 14px 14px; min-height: 0;
   }
-  #dot {
-    position: absolute; width: 28px; height: 28px; border-radius: 50%;
-    background: radial-gradient(circle, #ff453a 60%, transparent 70%);
+
+  /* Joystick on the left */
+  #joyWrap {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #222, #1a1a1a);
+    border: 2px dashed #444; border-radius: 20px; position: relative;
+  }
+  #joyBase {
+    width: 70%; aspect-ratio: 1; max-width: 320px; max-height: 100%;
+    border-radius: 50%; border: 2px solid #4a4a4a;
+    background: radial-gradient(circle, #2c2c2c, #1f1f1f);
+    position: relative; touch-action: none;
+  }
+  #deadZoneRing {
+    position: absolute; inset: 38%; border-radius: 50%;
+    border: 1px dashed #555; pointer-events: none;
+  }
+  #joyKnob {
+    position: absolute; width: 26%; height: 26%; left: 37%; top: 37%;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #ff6b5e, #c81d12);
+    box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+    pointer-events: none;
+    transition: left 0.08s, top 0.08s;
+  }
+
+  /* Right column: preview dot + buttons */
+  #right { display: flex; flex-direction: column; gap: 12px; min-width: 200px; }
+  #preview {
+    flex: 1; border: 2px dashed #444; border-radius: 16px;
+    background: #1c1c1c; position: relative; min-height: 140px;
+    overflow: hidden;
+  }
+  #previewDot {
+    position: absolute; width: 18px; height: 18px; border-radius: 50%;
+    background: radial-gradient(circle at 40% 35%, #ff6b5e, #c81d12);
     transform: translate(-50%, -50%); pointer-events: none;
-    opacity: 0; transition: opacity 0.15s;
+    opacity: 0; transition: opacity 0.1s;
   }
-  #pad.active #dot { opacity: 1; }
-  #hint { font-size: 12px; opacity: 0.5; pointer-events: none; }
+  #preview.active #previewDot { opacity: 1; }
+  #previewHint {
+    position: absolute; inset: 0; display: flex; align-items: center;
+    justify-content: center; font-size: 11px; opacity: 0.4; pointer-events: none;
+  }
+  .btnRow { display: flex; gap: 8px; flex-wrap: wrap; }
+  .badge { font-size: 11px; padding: 3px 8px; border-radius: 6px; background: #333; }
+  .live { color: #4ade80; }
+  .stopped { color: #f87171; }
+  @media (max-width: 540px) {
+    main { flex-direction: column; }
+    #joyWrap { min-height: 240px; }
+    #right { min-width: 0; }
+  }
 </style>
 </head>
 <body>
 <header>
-  <h1>RemoteLaser Test Client</h1>
+  <h1>RemoteLaser Test Client — joystick</h1>
   <div class="row">
     <label>Host</label>
     <input id="host" value="127.0.0.1" placeholder="mac LAN IP">
@@ -55,31 +98,90 @@
     <button id="connect">Connect</button>
     <span id="status">disconnected</span>
   </div>
-  <div class="row" style="gap:12px;">
-    <button id="testDot">Send Test Dot (center)</button>
-    <button id="sweep">Sweep across screen</button>
-    <label style="min-width:auto;cursor:pointer;">
-      <input type="checkbox" id="keepSending" style="width:auto;"> keep sending on release
+  <div class="row">
+    <label>Speed</label>
+    <input id="speed" type="range" min="0.05" max="2" step="0.05" value="0.8">
+    <span id="speedV" class="badge">0.8/s</span>
+    <label>Deadzone</label>
+    <input id="dead" type="range" min="0" max="0.5" step="0.01" value="0.08">
+    <span id="deadV" class="badge">0.08</span>
+    <label>Rate</label>
+    <input id="rate" type="range" min="10" max="120" step="5" value="60">
+    <span id="rateV" class="badge">60Hz</span>
+  </div>
+  <div class="row">
+    <button id="sweep">Sweep</button>
+    <button id="center">Center dot</button>
+    <button id="hide">Hide dot</button>
+    <label style="min-width:auto;cursor:pointer;display:flex;align-items:center;gap:4px;">
+      <input type="checkbox" id="tapMode" style="width:auto;"> tap-to-position mode
     </label>
   </div>
 </header>
-<div id="pad">
-  <div id="dot"></div>
-  <div id="hint">drag anywhere here to drive the laser</div>
-</div>
+
+<main>
+  <div id="joyWrap">
+    <div id="joyBase">
+      <div id="deadZoneRing"></div>
+      <div id="joyKnob"></div>
+    </div>
+  </div>
+  <div id="right">
+    <div id="preview">
+      <div id="previewHint">preview</div>
+      <div id="previewDot"></div>
+    </div>
+    <div class="row">
+      <span class="badge" id="modeState">idle</span>
+      <span class="badge" id="vecState">stick (0.00, 0.00)</span>
+    </div>
+    <div class="row">
+      <span class="badge" id="posState">dot @ (0.50, 0.50)</span>
+    </div>
+  </div>
+</main>
 
 <script>
 const hostEl = document.getElementById('host');
 const portEl = document.getElementById('port');
 const btn = document.getElementById('connect');
 const status = document.getElementById('status');
-const pad = document.getElementById('pad');
-const dot = document.getElementById('dot');
-const hint = document.getElementById('hint');
+const joyBase = document.getElementById('joyBase');
+const joyKnob = document.getElementById('joyKnob');
+const preview = document.getElementById('preview');
+const previewDot = document.getElementById('previewDot');
+const previewHint = document.getElementById('previewHint');
+const modeState = document.getElementById('modeState');
+const vecState = document.getElementById('vecState');
+const posState = document.getElementById('posState');
+const speedEl = document.getElementById('speed');
+const speedV = document.getElementById('speedV');
+const deadEl = document.getElementById('dead');
+const deadV = document.getElementById('deadV');
+const rateEl = document.getElementById('rate');
+const rateV = document.getElementById('rateV');
+const sweepBtn = document.getElementById('sweep');
+const centerBtn = document.getElementById('center');
+const hideBtn = document.getElementById('hide');
+const tapModeEl = document.getElementById('tapMode');
 
 let ws = null;
-let active = false;
-let keepSendingOnRelease = false;
+// dot position normalized 0..1 (top-left origin like the server expects)
+let dotX = 0.5, dotY = 0.5;
+// joystick vector -1..1
+let stickX = 0, stickY = 0;
+let joyActive = false;
+let sweepTimer = null;
+
+function clamp(v, lo, hi) { return Math.min(Math.max(v, lo), hi); }
+
+function speed() { return parseFloat(speedEl.value); }
+function deadzone() { return parseFloat(deadEl.value); }
+function rate() { return parseInt(rateEl.value, 10); }
+
+speedEl.addEventListener('input', () => speedV.textContent = speedEl.value + '/s');
+deadEl.addEventListener('input', () => deadV.textContent = deadEl.value);
+rateEl.addEventListener('input', () => rateV.textContent = rateEl.value + 'Hz');
 
 btn.addEventListener('click', () => {
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
@@ -91,90 +193,179 @@ btn.addEventListener('click', () => {
   const url = `ws://${host}:${port}/laser`;
   setStatus('connecting…');
   ws = new WebSocket(url);
-
-  ws.onopen = () => { setStatus('connected'); btn.textContent = 'Disconnect'; };
+  ws.onopen = () => { setStatus('connected'); btn.textContent = 'Disconnect'; ws.send(JSON.stringify({type:'move', x:dotX, y:dotY})); };
   ws.onmessage = (e) => {
     try {
-      const msg = JSON.parse(e.data);
-      if (msg.type === 'ready') {
-        setStatus(`connected · screen ${msg.screen.w}x${msg.screen.h}`);
-      }
+      const m = JSON.parse(e.data);
+      if (m.type === 'ready') setStatus(`connected · screen ${m.screen.w}x${m.screen.h}`);
     } catch {}
   };
-  ws.onclose = () => { setStatus('disconnected'); btn.textContent = 'Connect'; };
+  ws.onclose = () => { setStatus('disconnected'); btn.textContent = 'Connect'; ws = null; stopPump(); };
   ws.onerror = () => { setStatus('error'); };
 });
-
 function setStatus(t) { status.textContent = t; }
 
 function sendMove(x, y) {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
   ws.send(JSON.stringify({ type: 'move', x, y }));
 }
-
-function pointerToNorm(ev) {
-  const r = pad.getBoundingClientRect();
-  const x = Math.min(Math.max((ev.clientX - r.left) / r.width, 0), 1);
-  const y = Math.min(Math.max((ev.clientY - r.top) / r.height, 0), 1);
-  return { x, y };
+function sendHide() {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ type: 'hide' }));
 }
 
-function updateDot(x, y) {
-  const r = pad.getBoundingClientRect();
-  dot.style.left = (x * r.width) + 'px';
-  dot.style.top = (y * r.height) + 'px';
+function updatePreview() {
+  const r = preview.getBoundingClientRect();
+  previewDot.style.left = (dotX * r.width) + 'px';
+  previewDot.style.top = (dotY * r.height) + 'px';
+  posState.textContent = `dot @ (${dotX.toFixed(2)}, ${dotY.toFixed(2)})`;
+}
+function showPreview() { preview.classList.add('active'); previewHint.style.display = 'none'; updatePreview(); }
+function hidePreview() { preview.classList.remove('active'); }
+
+// ----- Joystick drag -----
+let joyPointerId = null;
+let joyRect = null;
+
+joyBase.addEventListener('pointerdown', (e) => {
+  if (tapModeEl.checked) return; // tap mode uses preview as the surface
+  if (joyPointerId !== null) return;
+  joyPointerId = e.pointerId;
+  joyBase.setPointerCapture(e.pointerId);
+  joyRect = joyBase.getBoundingClientRect();
+  joyActive = true;
+  modeState.textContent = 'flying'; modeState.className = 'badge live';
+  moveKnob(e);
+});
+joyBase.addEventListener('pointermove', (e) => {
+  if (e.pointerId !== joyPointerId) return;
+  moveKnob(e);
+});
+function endJoy(e) {
+  if (e.pointerId !== joyPointerId) return;
+  joyPointerId = null;
+  joyActive = false;
+  stickX = 0; stickY = 0;
+  joyKnob.style.left = '37%'; joyKnob.style.top = '37%';
+  vecState.textContent = 'stick (0.00, 0.00)';
+  modeState.textContent = 'idle (stopped)'; modeState.className = 'badge stopped';
+  // Send final position so the dot stays put
+  sendMove(dotX, dotY);
+  stopPump();
+}
+joyBase.addEventListener('pointerup', endJoy);
+joyBase.addEventListener('pointercancel', endJoy);
+
+function moveKnob(e) {
+  const cx = joyRect.left + joyRect.width / 2;
+  const cy = joyRect.top + joyRect.height / 2;
+  const r = Math.min(joyRect.width, joyRect.height) / 2;
+  let dx = (e.clientX - cx) / r;
+  let dy = (e.clientY - cy) / r;
+  const mag = Math.hypot(dx, dy);
+  if (mag > 1) { dx /= mag; dy /= mag; }
+  // Apply deadzone
+  const dz = deadzone();
+  let sx = dx, sy = dy;
+  if (Math.hypot(sx, sy) < dz) { sx = 0; sy = 0; }
+  stickX = sx; stickY = sy;
+  // Position knob (in % of base)
+  const kx = 50 + sx * 40; // knob can go to 90% / 10%
+  const ky = 50 + sy * 40;
+  joyKnob.style.left = (kx - 13) + '%';
+  joyKnob.style.top = (ky - 13) + '%';
+  vecState.textContent = `stick (${sx.toFixed(2)}, ${sy.toFixed(2)})`;
+  startPump();
 }
 
-pad.addEventListener('pointerdown', (e) => {
-  active = true;
-  pad.classList.add('active');
-  hint.style.display = 'none';
-  pad.setPointerCapture(e.pointerId);
-  const { x, y } = pointerToNorm(e);
-  updateDot(x, y);
-  sendMove(x, y);
+// ----- Tap-to-position mode (preview doubles as touch surface) -----
+preview.addEventListener('pointerdown', (e) => {
+  if (!tapModeEl.checked) return;
+  const r = preview.getBoundingClientRect();
+  dotX = clamp((e.clientX - r.left) / r.width, 0, 1);
+  dotY = clamp((e.clientY - r.top) / r.height, 0, 1);
+  showPreview();
+  sendMove(dotX, dotY);
+  modeState.textContent = 'tap'; modeState.className = 'badge live';
 });
-pad.addEventListener('pointermove', (e) => {
-  if (!active) return;
-  const { x, y } = pointerToNorm(e);
-  updateDot(x, y);
-  sendMove(x, y);
+preview.addEventListener('pointermove', (e) => {
+  if (!tapModeEl.checked || e.buttons === 0) return;
+  const r = preview.getBoundingClientRect();
+  dotX = clamp((e.clientX - r.left) / r.width, 0, 1);
+  dotY = clamp((e.clientY - r.top) / r.height, 0, 1);
+  updatePreview();
+  sendMove(dotX, dotY);
 });
-function endDrag(e) {
-  if (!active) return;
-  active = false;
-  pad.classList.remove('active');
-  // Don't send hide — let the server's 4s auto-hide handle it
-  // so a quick tap/click still shows the dot briefly
+
+tapModeEl.addEventListener('change', () => {
+  if (tapModeEl.checked) {
+    modeState.textContent = 'tap mode (drag preview)';
+  } else {
+    modeState.textContent = 'idle';
+  }
+});
+
+// ----- Velocity pump -----
+let pumpTimer = null;
+let lastPump = 0;
+function startPump() {
+  if (pumpTimer !== null) return;
+  const dt = 1000 / rate();
+  lastPump = performance.now();
+  pumpTimer = setInterval(tickPump, dt);
 }
-pad.addEventListener('pointerup', endDrag);
-pad.addEventListener('pointercancel', endDrag);
-pad.addEventListener('pointerleave', endDrag);
+function stopPump() {
+  if (pumpTimer !== null) { clearInterval(pumpTimer); pumpTimer = null; }
+}
+function tickPump() {
+  if (sweepTimer) return; // sweep owns the pump
+  const now = performance.now();
+  const dt = Math.min(0.05, (now - lastPump) / 1000);
+  lastPump = now;
+  const s = speed();
+  dotX = clamp(dotX + stickX * s * dt, 0, 1);
+  dotY = clamp(dotY + stickY * s * dt, 0, 1);
+  // y on screen grows downward; joystick up (negative dy in screen-space of joy)
+  // should move dot up (smaller y). Our stickY is negative when pointing down in
+  // the joy box because clientY grows downward. Flip so up-on-joy = up-on-screen.
+  // Actually we computed stickY from (clientY - cy)/r, so down=? yes dy positive
+  // when pointing down. The screen y also increases downward so no flip needed.
+  sendMove(dotX, dotY);
+  updatePreview();
+  if (joyActive) showPreview();
+}
 
-// === Test controls ===
-
-document.getElementById('testDot').addEventListener('click', () => {
-  if (!ws || ws.readyState !== WebSocket.OPEN) { alert('Not connected'); return; }
-  ws.send(JSON.stringify({ type: 'move', x: 0.5, y: 0.5 }));
-  updateDot(0.5, 0.5);
-});
-
-document.getElementById('sweep').addEventListener('click', () => {
-  if (!ws || ws.readyState !== WebSocket.OPEN) { alert('Not connected'); return; }
+// ----- Sweep demo -----
+sweepBtn.addEventListener('click', () => {
+  if (!ws || ws.readyState !== WebSocket.OPEN) { setStatus('connect first'); return; }
+  if (sweepTimer) { clearInterval(sweepTimer); sweepTimer = null; sweepBtn.textContent = 'Sweep'; return; }
   let t = 0;
-  const id = setInterval(() => {
-    const x = 0.5 + 0.45 * Math.sin(t);
-    const y = 0.5 + 0.30 * Math.cos(t * 1.3);
-    updateDot(x, y);
-    ws.send(JSON.stringify({ type: 'move', x, y }));
+  startPump();
+  sweepTimer = setInterval(() => {
     t += 0.1;
-    if (t > 4 * Math.PI) clearInterval(id);
+    dotX = 0.5 + 0.45 * Math.sin(t);
+    dotY = 0.5 + 0.30 * Math.cos(t * 1.3);
+    showPreview();
+    sendMove(dotX, dotY);
+    if (t > 4 * Math.PI) { clearInterval(sweepTimer); sweepTimer = null; sweepBtn.textContent = 'Sweep'; stopPump(); }
   }, 50);
+  sweepBtn.textContent = 'Stop sweep';
 });
 
-document.getElementById('keepSending').addEventListener('change', (e) => {
-  keepSendingOnRelease = e.target.checked;
+centerBtn.addEventListener('click', () => {
+  dotX = 0.5; dotY = 0.5;
+  showPreview();
+  sendMove(dotX, dotY);
+  modeState.textContent = 'centered'; modeState.className = 'badge live';
 });
+hideBtn.addEventListener('click', () => {
+  hidePreview();
+  sendHide();
+  modeState.textContent = 'hidden'; modeState.className = 'badge stopped';
+});
+
+window.addEventListener('resize', updatePreview);
+updatePreview();
 </script>
 </body>
 </html>

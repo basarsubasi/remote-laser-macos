@@ -2,9 +2,10 @@ import Foundation
 
 struct Options {
     var port: Int = 8080
-    var smooth: Double = 0.35         // lerp alpha per 60Hz frame [0..1]
+    var smooth: Double = 0.2          // lerp alpha per 60Hz frame [0..1] — low = silkier chase
     var sensitivity: Double = 1.0
-    var dotSize: Double = 10          // dot radius in points
+    var dotSize: Double = 10         // dot radius in points
+    var autoHide: Double = 1.0       // seconds of inactivity before the dot hides (0 = never)
     var help: Bool = false
 
     static let usage = """
@@ -12,12 +13,14 @@ struct Options {
 
     Options:
       --port <1-65535>        WebSocket server port (default: 8080)
-      --smooth <0-1>          Lerp factor per 60Hz frame (default: 0.35).
+      --smooth <0-1>          Lerp factor per 60Hz frame (default: 0.2).
                               0 = never moves, 1 = instant snap,
-                              ~0.3 = smooth chase of incoming targets.
+                              ~0.2 = silk-smooth chase of incoming targets.
       --sensitivity <0.1-10>  Input gain around screen center (default: 1.0).
                               >1 amplifies finger movement, <1 dampens it.
       --dot-size <1-200>      Dot radius in points (default: 10).
+      --auto-hide <sec>       Seconds of inactivity before the dot hides (default: 1.0).
+                              0 = never auto-hide.
       -h, --help              Show this message and exit
     """
 
@@ -54,6 +57,12 @@ struct Options {
                 }
                 opts.dotSize = validateDotSize(value)
                 i += 2
+            case "--auto-hide":
+                guard i + 1 < args.count, let value = Double(args[i + 1]) else {
+                    fail("--auto-hide requires a numeric value")
+                }
+                opts.autoHide = validateAutoHide(value)
+                i += 2
             default:
                 if let (_, v) = parseEquals(arg, "--port") {
                     guard let n = Int(v) else { fail("--port requires a numeric value") }
@@ -67,6 +76,9 @@ struct Options {
                 } else if let (_, v) = parseEquals(arg, "--dot-size") {
                     guard let n = Double(v) else { fail("--dot-size requires a numeric value") }
                     opts.dotSize = validateDotSize(n)
+                } else if let (_, v) = parseEquals(arg, "--auto-hide") {
+                    guard let n = Double(v) else { fail("--auto-hide requires a numeric value") }
+                    opts.autoHide = validateAutoHide(n)
                 } else {
                     fail("Unknown argument: \(arg)")
                 }
@@ -106,6 +118,13 @@ struct Options {
     private static func validateDotSize(_ value: Double) -> Double {
         guard (1...200).contains(value) else {
             fail("--dot-size must be between 1 and 200 points")
+        }
+        return value
+    }
+
+    private static func validateAutoHide(_ value: Double) -> Double {
+        guard (0...3600).contains(value) else {
+            fail("--auto-hide must be between 0 (never) and 3600 seconds")
         }
         return value
     }
