@@ -4,7 +4,7 @@ struct Options {
     var port: Int = 8080
     var smooth: Double = 0.2          // lerp alpha per 60Hz frame [0..1] — low = silkier chase
     var sensitivity: Double = 1.0
-    var dotSize: Double = 5          // dot radius in points
+    var dotSize: Double = 4          // dot radius in points
     var autoHide: Double = 1.0       // seconds of inactivity before the dot hides (0 = never)
     var trailLength: Int = 50        // max number of stamped trail segments kept in memory
     var trailFade: Double = 5.0      // seconds for a stamp to fully fade (0 = never fade)
@@ -20,7 +20,7 @@ struct Options {
                               ~0.2 = silk-smooth chase of incoming targets.
       --sensitivity <0.1-10>  Input gain around screen center (default: 1.0).
                               >1 amplifies finger movement, <1 dampens it.
-      --dot-size <1-200>      Dot radius in points (default: 5).
+      --dot-size <1-200>      Dot radius in points (default: 4).
       --auto-hide <sec>       Seconds of inactivity before the dot hides (default: 1.0).
                               0 = never auto-hide.
       --trail-length <0-500>  Max number of stamp segments kept in the trail buffer
