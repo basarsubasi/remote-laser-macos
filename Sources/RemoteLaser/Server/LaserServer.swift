@@ -71,6 +71,23 @@ final class LaserServer: @unchecked Sendable {
             }
 
             let router = Router(context: BasicWebSocketRequestContext.self)
+
+            // Serve the touch-control web UI at the root URL.
+            // This is critical: mobile browsers (Brave, Chrome) with HTTPS-First
+            // mode will block ws:// connections from file:// or https:// pages.
+            // Serving the HTML from the SAME http:// origin avoids mixed content.
+            router.get("/") { _, _ -> Response in
+                let html = ClientHTML.content
+                return Response(
+                    status: .ok,
+                    headers: [
+                        .contentType: "text/html; charset=utf-8",
+                        .cacheControl: "no-cache",
+                    ],
+                    body: .init(byteBuffer: .init(string: html))
+                )
+            }
+
             let app = Application(
                 router: router,
                 server: .http1WebSocketUpgrade(webSocketRouter: wsRouter),
