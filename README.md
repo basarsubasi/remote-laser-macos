@@ -44,7 +44,7 @@ open ./build/RemoteLaser.app
 | `--auto-hide <sec>` | 0–3600 | `1.0` | Inactivity seconds before dot fades (0 = stay visible) |
 | `--trail-length <n>` | 0–500 | `50` | Maximum number of stamped trail segments (0 = no trail) |
 | `--trail-fade <sec>` | 0–60 | `5.0` | Seconds for ink trail to completely fade out |
-| `--allowed-ips <ips>` | `all` or IP list | `all` | Comma-separated list of allowed client IP addresses (e.g. `192.168.1.50,192.168.1.51`). Non-matching IPs immediately receive 401 without CLI confirmation. |
+| `--allowed-ips <ips>` | `all` or IP list | `all` | Comma-separated list of allowed client IP addresses (e.g. `192.168.1.50,192.168.1.51`). If specific IPs are provided, matching clients connect directly without CLI `[y/N]` prompt while unauthorized IPs receive 401. |
 | `-h, --help` | - | - | Show usage and exit |
 
 ---

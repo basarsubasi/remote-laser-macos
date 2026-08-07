@@ -56,6 +56,17 @@ final class LaserServer: @unchecked Sendable {
                 let userAgent = request.headers[.userAgent] ?? "<unknown>"
                 let remoteHint: String = request.head.authority ?? "<unknown>"
 
+                let isWildcard = allowedIPs.isEmpty || allowedIPs.contains(where: { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "all" })
+
+                if !isWildcard {
+                    print("\n[RemoteLaser] Accepted WebSocket connection from allowed IP: \(clientIP ?? "<unknown>")")
+                    print("  Origin:       \(origin)")
+                    print("  User-Agent:   \(userAgent)")
+                    print("  Remote hint:  \(remoteHint)")
+                    context.logger.info("Connection auto-allowed by allowed-ips whitelist: \(clientIP ?? "<unknown>")")
+                    return .upgrade([:])
+                }
+
                 print("\n[RemoteLaser] Incoming WebSocket connection request:")
                 print("  Client IP:    \(clientIP ?? "<unknown>")")
                 print("  Origin:       \(origin)")
