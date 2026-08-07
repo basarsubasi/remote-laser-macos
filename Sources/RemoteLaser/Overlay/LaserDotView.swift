@@ -72,6 +72,9 @@ func moveTo(_ point: CGPoint, duration: Double = 0.12) {
         glowLayer.position = point
         dotLayer.position = point
         CATransaction.commit()
+        #if DEBUG
+        print("[LaserDotView] moveTo point=\(point) duration=\(duration) isHidden=\(isHidden) bounds=\(bounds) dotBounds=\(dotLayer.bounds) glowBounds=\(glowLayer.bounds) dotColor=\(dotLayer.backgroundColor ?? CGColor(gray: 0, alpha: 0))")
+        #endif
     }
 
     private func applyColors() {

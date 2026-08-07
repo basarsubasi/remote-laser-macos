@@ -1,4 +1,8 @@
 import AppKit
+import Foundation
+
+// Force unbuffered stdout so diagnostic prints flush immediately.
+setvbuf(stdout, nil, _IONBF, 0)
 
 let options = Options.parse(CommandLine.arguments)
 

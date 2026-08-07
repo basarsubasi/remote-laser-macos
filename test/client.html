@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no"/>
+<title>RemoteLaser Test Client</title>
+<style>
+  :root { color-scheme: light dark; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    font: 14px -apple-system, system-ui, sans-serif;
+    background: #1a1a1a; color: #eee;
+    touch-action: none; overscroll-behavior: none;
+  }
+  header {
+    padding: 12px 16px; display: flex; flex-direction: column; gap: 8px;
+  }
+  h1 { margin: 0; font-size: 16px; font-weight: 600; }
+  .row { display: flex; gap: 8px; align-items: center; }
+  label { font-size: 12px; opacity: 0.7; min-width: 38px; }
+  input, button {
+    font: inherit; padding: 6px 10px; border-radius: 8px;
+    border: 1px solid #444; background: #2a2a2a; color: #eee;
+  }
+  input[type=number] { width: 70px; }
+  button { cursor: pointer; }
+  #connect { min-width: 96px; }
+  #status { font-size: 12px; opacity: 0.6; flex: 1; text-align: right; }
+  #pad {
+    flex: 1; margin: 12px 16px 16px;
+    border-radius: 16px; border: 2px dashed #555;
+    background: linear-gradient(135deg, #262626, #1f1f1f);
+    position: relative; cursor: crosshair; touch-action: none;
+    display: flex; align-items: center; justify-content: center;
+    color: #666; user-select: none;
+  }
+  #dot {
+    position: absolute; width: 28px; height: 28px; border-radius: 50%;
+    background: radial-gradient(circle, #ff453a 60%, transparent 70%);
+    transform: translate(-50%, -50%); pointer-events: none;
+    opacity: 0; transition: opacity 0.15s;
+  }
+  #pad.active #dot { opacity: 1; }
+  #hint { font-size: 12px; opacity: 0.5; pointer-events: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>RemoteLaser Test Client</h1>
+  <div class="row">
+    <label>Host</label>
+    <input id="host" value="127.0.0.1" placeholder="mac LAN IP">
+    <label>Port</label>
+    <input id="port" type="number" value="8080">
+    <button id="connect">Connect</button>
+    <span id="status">disconnected</span>
+  </div>
+</header>
+<div id="pad">
+  <div id="dot"></div>
+  <div id="hint">drag anywhere here to drive the laser</div>
+</div>
+
+<script>
+const hostEl = document.getElementById('host');
+const portEl = document.getElementById('port');
+const btn = document.getElementById('connect');
+const status = document.getElementById('status');
+const pad = document.getElementById('pad');
+const dot = document.getElementById('dot');
+const hint = document.getElementById('hint');
+
+let ws = null;
+let active = false;
+
+btn.addEventListener('click', () => {
+  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+    ws.close();
+    return;
+  }
+  const host = hostEl.value.trim() || '127.0.0.1';
+  const port = parseInt(portEl.value, 10) || 8080;
+  const url = `ws://${host}:${port}/laser`;
+  setStatus('connecting…');
+  ws = new WebSocket(url);
+
+  ws.onopen = () => { setStatus('connected'); btn.textContent = 'Disconnect'; };
+  ws.onmessage = (e) => {
+    try {
+      const msg = JSON.parse(e.data);
+      if (msg.type === 'ready') {
+        setStatus(`connected · screen ${msg.screen.w}x${msg.screen.h}`);
+      }
+    } catch {}
+  };
+  ws.onclose = () => { setStatus('disconnected'); btn.textContent = 'Connect'; };
+  ws.onerror = () => { setStatus('error'); };
+});
+
+function setStatus(t) { status.textContent = t; }
+
+function sendMove(x, y) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ type: 'move', x, y }));
+}
+
+function pointerToNorm(ev) {
+  const r = pad.getBoundingClientRect();
+  const x = Math.min(Math.max((ev.clientX - r.left) / r.width, 0), 1);
+  const y = Math.min(Math.max((ev.clientY - r.top) / r.height, 0), 1);
+  return { x, y };
+}
+
+function updateDot(x, y) {
+  const r = pad.getBoundingClientRect();
+  dot.style.left = (x * r.width) + 'px';
+  dot.style.top = (y * r.height) + 'px';
+}
+
+pad.addEventListener('pointerdown', (e) => {
+  active = true;
+  pad.classList.add('active');
+  hint.style.display = 'none';
+  pad.setPointerCapture(e.pointerId);
+  const { x, y } = pointerToNorm(e);
+  updateDot(x, y);
+  sendMove(x, y);
+});
+pad.addEventListener('pointermove', (e) => {
+  if (!active) return;
+  const { x, y } = pointerToNorm(e);
+  updateDot(x, y);
+  sendMove(x, y);
+});
+function endDrag(e) {
+  if (!active) return;
+  active = false;
+  pad.classList.remove('active');
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'hide' }));
+}
+pad.addEventListener('pointerup', endDrag);
+pad.addEventListener('pointercancel', endDrag);
+pad.addEventListener('pointerleave', endDrag);
+</script>
+</body>
+</html>

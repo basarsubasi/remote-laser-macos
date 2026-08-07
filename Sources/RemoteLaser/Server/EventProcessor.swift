@@ -15,9 +15,17 @@ final class EventProcessor: @unchecked Sendable {
     }
 
     func apply(_ event: LaserEvent) {
+        #if DEBUG
+        print("[EventProcessor] received: type=\(event.type) x=\(event.x ?? -1) y=\(event.y ?? -1)")
+        #endif
         switch event.type {
         case .move:
-            guard let x = event.x, let y = event.y else { return }
+            guard let x = event.x, let y = event.y else {
+                #if DEBUG
+                print("[EventProcessor] move event missing x/y, skipping")
+                #endif
+                return
+            }
             overlay.reveal()
             let point = overlay.pointFor(normalizedX: x, normalizedY: y, sensitivity: sensitivity)
             overlay.dotView?.moveTo(point, duration: speed)

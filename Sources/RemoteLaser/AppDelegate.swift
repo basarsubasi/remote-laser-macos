@@ -33,6 +33,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         server.start()
         self.server = server
 
+        showDiagnosticDot()
         setupStatusItem()
         print("RemoteLaser listening on ws://0.0.0.0:\(port)/laser")
         print("LAN IP hint: \(primaryLANIP() ?? "<unknown>")")
@@ -40,6 +41,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         server?.stop()
+    }
+
+    private func showDiagnosticDot() {
+        guard let dv = overlay.dotView else {
+            print("[Diagnostic] dotView is nil!" )
+            return
+        }
+        dv.layout()
+        dv.needsLayout = true
+        let center = CGPoint(x: NSMidX(dv.bounds), y: NSMidY(dv.bounds))
+        print("[Diagnostic] showing test dot at center \(center) bounds=\(dv.bounds) for 2 seconds…")
+        dv.isHidden = false
+        dv.moveTo(center, duration: 0)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+            self?.overlay.hide()
+            print("[Diagnostic] test dot hidden")
+        }
     }
 
     // MARK: - Menu bar

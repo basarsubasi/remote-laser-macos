@@ -33,6 +33,9 @@ final class LaserOverlayController {
         panel.orderFrontRegardless()
         self.window = panel
         self.dotView = dot
+        #if DEBUG
+        print("[Overlay] install frame=\(frame) windowFrame=\(panel.frame) dotBounds=\(dot.bounds) windowLevel=\(panel.level.rawValue) isVisible=\(panel.isVisible)")
+        #endif
 
         NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
@@ -43,10 +46,16 @@ final class LaserOverlayController {
     }
 
     func reveal() {
+        #if DEBUG
+        print("[Overlay] reveal called, dotView exists=\(dotView != nil), window visible=\(window?.isVisible ?? false)")
+        #endif
         dotView?.isHidden = false
     }
 
     func hide() {
+        #if DEBUG
+        print("[Overlay] hide called")
+        #endif
         dotView?.isHidden = true
     }
 
@@ -62,9 +71,13 @@ final class LaserOverlayController {
     func pointFor(normalizedX x: Double, normalizedY y: Double, sensitivity: Double = 1.0) -> CGPoint {
         let sx = min(max(0.5 + (x - 0.5) * sensitivity, 0), 1)
         let sy = min(max(0.5 + (y - 0.5) * sensitivity, 0), 1)
-        return CGPoint(
-            x: frame.minX + CGFloat(sx) * frame.width,
-            y: frame.minY + (1 - CGFloat(sy)) * frame.height
+        let point = CGPoint(
+            x: CGFloat(sx) * frame.width,
+            y: (1 - CGFloat(sy)) * frame.height
         )
+        #if DEBUG
+        print("[Overlay] pointFor input=(\(x), \(y)) sens=\(sensitivity) mapped=(\(sx), \(sy)) point=\(point) frame=\(frame)")
+        #endif
+        return point
     }
 }

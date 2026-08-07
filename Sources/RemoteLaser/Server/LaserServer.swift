@@ -40,6 +40,9 @@ final class LaserServer: @unchecked Sendable {
                 do {
                     for try await message in inbound.messages(maxSize: .max) {
                         if case .text(let text) = message {
+                            #if DEBUG
+                            print("[Server] received text frame: \(text)")
+                            #endif
                             if let payload = text.data(using: .utf8),
                                let event = try? JSONDecoder().decode(LaserEvent.self, from: payload) {
                                 onEvent(event)
