@@ -170,7 +170,7 @@ enum ClientHTML {
   #toast.show { opacity: 1; transform: translate(-50%, 0); }
 </style>
 </head>
-<body>
+<body class="tap">
 
 <div id="toast"></div>
 
@@ -207,7 +207,7 @@ enum ClientHTML {
       <span class="val" id="rateV">60Hz</span>
     </div>
     <label class="toggle">
-      <input type="checkbox" id="tapMode">
+      <input type="checkbox" id="tapMode" checked>
       <span>Tap-to-position mode (tap the screen to move the dot directly)</span>
     </label>
   </div>
@@ -226,7 +226,7 @@ enum ClientHTML {
     <div id="previewDot"></div>
   </div>
 
-  <div id="tapPad">
+  <div id="tapPad" class="active">
     <div id="tapPadHint">tap or drag anywhere to position the laser</div>
     <div id="tapPadDot"></div>
   </div>
